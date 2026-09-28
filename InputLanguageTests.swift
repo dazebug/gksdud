@@ -311,6 +311,7 @@ func runStatusMenuWiringTests() {
     let attention = fixture("ko", PreviewState(trusted: false, updateAvailable: true, keyboardWarning: true, longPressFailure: true))
     featureCheck(!attention.delegate.statusMenu.items[1].isHidden && !attention.delegate.keyboardWarningRow.isHidden && !attention.delegate.pressSwitch.isEnabled
         && attention.delegate.longPressSwitch.toolTip == attention.delegate.longPressFailureMessage(for: SampleSource.twoSet), "the attention state must show the update, the keyboard warning, missing trust and the long-press failure")
+    featureCheck(attention.delegate.updateSummary.string == "- v99.0.0", "the update must show its release notes' summary section, not the fallback: \(attention.delegate.updateSummary.string)")
     for made in fixtures {
         let problems = made.verifyUntouched()
         featureCheck(problems.isEmpty, "the preview fixture reached the live system: \(problems)")

@@ -89,7 +89,8 @@ final class PreviewFixture {
         }
         defaults.set(Date(timeIntervalSince1970: 1_800_000_000), forKey: "updates.lastSuccess")
         if state.updateAvailable {
-            let release = AppRelease(tag_name: "v99.0.0", html_url: "https://github.com/codingnoye/gksdud/releases/tag/v99.0.0", body: nil, draft: false, prerelease: false)
+            // The About tab shows only the release notes' summary section, found by its heading.
+            let release = AppRelease(tag_name: "v99.0.0", html_url: "https://github.com/codingnoye/gksdud/releases/tag/v99.0.0", body: "## \(AppRelease.summaryHeading)\n- v99.0.0", draft: false, prerelease: false)
             defaults.set(try JSONEncoder().encode(release), forKey: "updates.release")
         }
         let delegate = AppDelegate(engine: engine, environment: AppDelegate.Environment(inputSources: inputs.inputSources, accessibilityTrusted: { recorder.trusted },
