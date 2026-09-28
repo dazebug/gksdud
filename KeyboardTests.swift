@@ -433,7 +433,7 @@ func renderKeyboardUI(to directory: String) throws {
     precondition(!delegate.updateSummary.string.contains("요약에 나타나면"))
     delegate.updates = UpdateChecker(defaults: defaults, installedVersion: "9.0.0")
     delegate.refreshUpdates()
-    precondition(delegate.tabButtons[3].accessibilityLabel() == "gksdud 탭" && delegate.updateButton.isHidden && updateEntry.isHidden)
+    precondition(delegate.tabButtons[3].accessibilityLabel() == delegate.tabAccessibilityLabel("gksdud") && delegate.updateButton.isHidden && updateEntry.isHidden)
     defaults.set(false, forKey: "active")
     delegate.resetSelection()
     for (title, usage) in zip(sourceKeyTitles, sources) {

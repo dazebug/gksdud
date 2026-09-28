@@ -21,8 +21,8 @@ extension AppDelegate {
         inputBadge.heightAnchor.constraint(equalToConstant: 34).isActive = true
         testInput.stringValue = engine.testInputText; testInput.delegate = self
         testInput.font = .monospacedSystemFont(ofSize: 21, weight: .medium)
-        testInput.placeholderString = "한영 전환을 테스트해보세요"
-        testInput.setAccessibilityLabel("한영 전환 테스트 입력창")
+        testInput.placeholderString = String(localized: "한영 전환을 테스트해보세요", comment: "General tab: placeholder of the empty switch test field. The Korean says try switching between Korean and English; translate it as trying the input source switch.")
+        testInput.setAccessibilityLabel(String(localized: "한영 전환 테스트 입력창", comment: "General tab: accessibility label of the text field for trying the input source switch."))
         testInput.cell?.isScrollable = true; testInput.cell?.wraps = false
         testInput.usesSingleLineMode = true; testInput.lineBreakMode = .byClipping
         testInput.heightAnchor.constraint(equalToConstant: 34).isActive = true
@@ -39,13 +39,15 @@ extension AppDelegate {
         let primary = primaryLanguage()
         let tabs = NSStackView(); tabs.distribution = .fillEqually; tabs.spacing = 8
         tabs.translatesAutoresizingMaskIntoConstraints = false; content.addSubview(tabs)
-        for (index, title) in ["일반", "대소문자", "특수문자", "gksdud"].enumerated() {
+        let titles = [String(localized: "일반", comment: "Settings window: title of the General tab button."), String(localized: "대소문자", comment: "Settings window: title of the tab button for uppercase and lowercase (Caps Lock) settings."),
+                      String(localized: "특수문자", comment: "Settings window: title of the tab button for special characters typed with Option."), "gksdud"]
+        for (index, title) in titles.enumerated() {
             let button = NSButton(title: title, target: self, action: #selector(changeTab(_:)))
             button.tag = index; button.setButtonType(.toggle); button.bezelStyle = .regularSquare
             button.isBordered = false; button.imagePosition = .imageAbove; button.imageScaling = .scaleProportionallyDown
             button.font = .systemFont(ofSize: 10)
             button.image = index == 0 ? Self.badgeImage(iconStyle.badge(for: primary)) : tabGlyph(["", "Aa", "⌥", "?"][index])
-            button.setAccessibilityLabel(title + " 탭")
+            button.setAccessibilityLabel(tabAccessibilityLabel(title))
             tabs.addArrangedSubview(button); tabButtons.append(button)
         }
         let tabLine = NSBox(); tabLine.boxType = .separator
@@ -86,7 +88,7 @@ extension AppDelegate {
         let general = tabPanels[0]
         enabled.target = self; enabled.action = #selector(toggleEnabled); enabled.state = engine.active ? .on : .off
         keyboardWarning.font = .systemFont(ofSize: 11); keyboardWarning.textColor = .systemOrange
-        let warningIcon = NSImageView(image: NSImage(systemSymbolName: "exclamationmark.circle.fill", accessibilityDescription: "경고")!)
+        let warningIcon = NSImageView(image: NSImage(systemSymbolName: "exclamationmark.circle.fill", accessibilityDescription: String(localized: "경고", comment: "General tab: accessibility description of the orange icon before the keyboard warning."))!)
         warningIcon.contentTintColor = .systemOrange
         warningIcon.widthAnchor.constraint(equalToConstant: 12).isActive = true
         keyboardWarningRow.addArrangedSubview(warningIcon); keyboardWarningRow.addArrangedSubview(keyboardWarning)
@@ -98,17 +100,17 @@ extension AppDelegate {
         pressAccess.target = self; pressAccess.action = #selector(requestPressAccess); pressAccess.bezelStyle = .rounded
         let pressRow = NSStackView(views: [pressSwitch, pressAccess]); pressRow.spacing = 16; pressRow.alignment = .centerY
         general.addArrangedSubview(pressRow)
-        hint("버튼을 뗄 때가 아닌 누를 때 전환하도록 해 더 빠르게 전환합니다.\n글자 씹힘도 더 개선됩니다.", in: general)
+        hint(String(localized: "버튼을 뗄 때가 아닌 누를 때 전환하도록 해 더 빠르게 전환합니다.\n글자 씹힘도 더 개선됩니다.", comment: "General tab: two-line hint under the switch-on-key-down checkbox. Switching when the key goes down, not when it is released, is faster and loses fewer typed characters."), in: general)
         separator(in: general)
         picker.addItems(withTitles: sourceKeyTitles)
         picker.selectItem(at: sources.firstIndex(of: engine.source) ?? 0)
         picker.target = self; picker.action = #selector(selectionChanged)
-        row("한영 키", [picker], in: general)
+        row(String(localized: "한영 키", comment: "General tab: label of the switch key picker. The Korean names the key that switches between Korean and English; translate it as the key that switches input sources."), [picker], in: general)
         targetPicker.addItems(withTitles: targets.map(\.name)); targetPicker.selectItem(withTitle: engine.target.name)
         targetPicker.target = self; targetPicker.action = #selector(selectionChanged)
-        row("내부 전환 키", [targetPicker], in: general)
-        hint("시스템의 '이전 입력 소스 선택' 단축키의 값을 변경합니다.\n다른 앱과 겹치지 않는, 기능 없는 키를 골라주세요.", in: general)
-        let keyboards = NSButton(title: "대상 키보드 설정", target: self, action: #selector(showKeyboardSettings)); keyboards.bezelStyle = .rounded
+        row(String(localized: "내부 전환 키", comment: "General tab: label of the internal switch key picker (F13-F20). gksdud turns the switch key into this key and makes it the system's \"Select the previous input source\" shortcut."), [targetPicker], in: general)
+        hint(String(localized: "시스템의 '이전 입력 소스 선택' 단축키의 값을 변경합니다.\n다른 앱과 겹치지 않는, 기능 없는 키를 골라주세요.", comment: "General tab: two-line hint under the internal switch key picker. Quote Apple's own name of the \"Select the previous input source\" shortcut. The second line asks for a key with no function that no other app uses."), in: general)
+        let keyboards = NSButton(title: String(localized: "대상 키보드 설정", comment: "General tab: button that opens the sheet choosing the keyboards whose switch key gksdud remaps."), target: self, action: #selector(showKeyboardSettings)); keyboards.bezelStyle = .rounded
         general.addArrangedSubview(keyboards)
         separator(in: general)
         login.target = self; login.action = #selector(toggleLogin)
@@ -116,26 +118,29 @@ extension AppDelegate {
         showInMenuBar.target = self; showInMenuBar.action = #selector(toggleHidden)
         showInMenuBar.state = engine.defaults.bool(forKey: "hidden") ? .off : .on
         general.addArrangedSubview(login); general.addArrangedSubview(showInMenuBar)
-        hint("기존 메뉴바 입력기를 대체합니다.\n⌘+드래그로 위치를 옮길 수 있어요.", in: general)
+        hint(String(localized: "기존 메뉴바 입력기를 대체합니다.\n⌘+드래그로 위치를 옮길 수 있어요.", comment: "General tab: two-line hint under the menu bar checkbox. The gksdud icon replaces the system's input menu, and ⌘-dragging moves it."), in: general)
         iconPicker.addItems(withTitles: IconStyle.allCases.map { $0.title(primary: primary) })
         iconPicker.selectItem(at: iconStyle.rawValue); iconPicker.target = self; iconPicker.action = #selector(changeIconStyle)
-        iconPicker.setAccessibilityLabel("메뉴바 아이콘 조합")
+        iconPicker.setAccessibilityLabel(String(localized: "메뉴바 아이콘 조합", comment: "General tab: accessibility label of the menu bar icon style picker, whose items pair an input language badge with an English one."))
         for preview in [languagePreview, englishPreview] {
             preview.widthAnchor.constraint(equalToConstant: 22).isActive = true
             preview.heightAnchor.constraint(equalToConstant: 20).isActive = true; preview.contentTintColor = .labelColor
         }
-        row("메뉴바 아이콘", [iconPicker, languagePreview, englishPreview], in: general)
+        row(String(localized: "메뉴바 아이콘", comment: "General tab: label of the menu bar icon style picker and its previews."), [iconPicker, languagePreview, englishPreview], in: general)
         let caps = tabPanels[1]
         longPressSwitch.target = self; longPressSwitch.action = #selector(toggleLongPress)
         preserveCapsSwitch.target = self; preserveCapsSwitch.action = #selector(togglePreserveCaps)
         caps.addArrangedSubview(longPressSwitch)
-        hint("누른 즉시 한영 전환, 길게 유지시 대소문자 전환", in: caps)
+        hint(String(localized: "누른 즉시 한영 전환, 길게 유지시 대소문자 전환", comment: "Case tab: hint under the long-press checkbox. A press switches the input source at once; holding the key toggles uppercase and lowercase."), in: caps)
         caps.addArrangedSubview(preserveCapsSwitch)
         let symbols = tabPanels[2]
-        for (index, title) in ["영어처럼 특수문자 입력", "Option 문자 입력 차단"].enumerated() {
+        let specialTitles = [String(localized: "영어처럼 특수문자 입력", comment: "Special characters tab: checkbox. Option characters are typed as in English even in Korean input. It works only for Korean input; say so in translations."),
+                             String(localized: "Option 문자 입력 차단", comment: "Special characters tab: checkbox that blocks Option characters, so Option with a letter types the plain letter. It works in every input language.")]
+        for (index, title) in specialTitles.enumerated() {
             let button = NSButton(checkboxWithTitle: title, target: self, action: #selector(changeSpecialMode(_:)))
             button.tag = index + 1; specialButtons.append(button); symbols.addArrangedSubview(button)
-            hint(index == 0 ? "한글 상태에서도 ⌥8 → • 처럼 입력합니다." : "⌥+문자를 일반 문자로 입력합니다.", in: symbols)
+            hint(index == 0 ? String(localized: "한글 상태에서도 ⌥8 → • 처럼 입력합니다.", comment: "Special characters tab: hint under the type-like-English checkbox: in Korean input, ⌥8 still types •. Name Korean input explicitly in translations, because the option works only there.")
+                : String(localized: "⌥+문자를 일반 문자로 입력합니다.", comment: "Special characters tab: hint under the Option block checkbox: ⌥ with a letter types the plain letter."), in: symbols)
         }
         specialStatus.font = .systemFont(ofSize: 11); specialStatus.textColor = .secondaryLabelColor
         full(specialStatus, in: symbols)
@@ -167,7 +172,7 @@ extension AppDelegate {
             image.size = NSSize(width: 16, height: 16); image.isTemplate = true
             project.image = image; project.imagePosition = .imageLeading
         }
-        let support = NSButton(title: "후원", target: self, action: #selector(openSupport)); support.bezelStyle = .rounded
+        let support = NSButton(title: String(localized: "후원", comment: "About tab: button that opens the page for sponsoring the developer."), target: self, action: #selector(openSupport)); support.bezelStyle = .rounded
         support.isHidden = supportURL == nil
         about.addArrangedSubview(NSStackView(views: [project, support]))
         let credit = NSTextField(labelWithString: "© 2026 CodingNoye · codingnoye@gmail.com")
@@ -212,7 +217,7 @@ extension AppDelegate {
     @objc func performUpdate() { if let release = updates.available { installer.start(release) } }
     func installPreparedUpdate(_ prepared: PreparedUpdate) {
         do {
-            guard !engine.isUpdatingSettings else { throw UpdateFailure("설정을 적용하고 있습니다. 잠시 후 다시 시도해주세요.") }
+            guard !engine.isUpdatingSettings else { throw UpdateFailure(String(localized: "설정을 적용하고 있습니다. 잠시 후 다시 시도해주세요.", comment: "About tab: update status when the downloaded update cannot restart gksdud because a settings change is still being applied.")) }
             optionInput.cancel()
             try engine.prepareForExit()
             try UpdateInstaller.launchHelper(prepared)
@@ -235,7 +240,7 @@ extension AppDelegate {
         let release = updates.available
         tabButtons.last?.image = release == nil ? tabGlyph("?") : updateGlyph(NSSize(width: 24, height: 20), color: .controlAccentColor)
         selectTab(selectedTab)
-        tabButtons.last?.setAccessibilityLabel(release == nil ? "gksdud 탭" : "gksdud 탭, 업데이트 가능")
+        tabButtons.last?.setAccessibilityLabel(tabAccessibilityLabel("gksdud", updateAvailable: release != nil))
         for entry in statusMenu.items where entry.action == #selector(showAbout) { entry.isHidden = release == nil }
         let latest = release.map { " → v\($0.versionString)" } ?? ""
         updateHeading.stringValue = "v\(updates.installedVersion)\(latest)"
@@ -245,10 +250,15 @@ extension AppDelegate {
         updateButton.isEnabled = !installer.busy
         checkUpdateButton.isEnabled = !updates.checking && !installer.busy
         if !installer.status.isEmpty { updateStatus.stringValue = installer.status }
-        else if updates.checking { updateStatus.stringValue = "업데이트 확인 중…" }
+        else if updates.checking { updateStatus.stringValue = String(localized: "업데이트 확인 중…", comment: "About tab: update status while checking for a new version.") }
         else if let error = updates.error { updateStatus.stringValue = error }
         else if let date = updates.lastChecked {
-            updateStatus.stringValue = "마지막 확인 \(DateFormatter.localizedString(from: date, dateStyle: .short, timeStyle: .short))"
+            updateStatus.stringValue = String(localized: "마지막 확인 \(DateFormatter.localizedString(from: date, dateStyle: .short, timeStyle: .short))", comment: "About tab: update status after a check. %@ is the date and time of the last successful check, formatted for the user's region.")
         } else { updateStatus.stringValue = "" }
+    }
+    // One format for every tab, with the title as the argument, so the About tab keeps its brand title.
+    func tabAccessibilityLabel(_ title: String, updateAvailable: Bool = false) -> String {
+        updateAvailable ? String(localized: "\(title) 탭, 업데이트 가능", comment: "Settings window: accessibility label of the About tab button while an update is available. %@ is the tab title, gksdud.")
+            : String(localized: "\(title) 탭", comment: "Settings window: accessibility label of a tab button. %@ is the tab title, such as General or gksdud.")
     }
 }
