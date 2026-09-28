@@ -288,21 +288,8 @@ func runStatusMenuWiringTests() {
     featureCheck(badge("中", filled: true, "zh-Hant") != badge("中", filled: true, "ja"), "a Han badge must take its input language's regional shape")
     print("PASS: Korean badge pixels unchanged: 한, KO, dud, A and EN draw the same with their language tags, and 中 follows its tag")
 
-    // Every label a badge draws, laid out with the badge's own attributes, must come from its input language's Apple standard font whatever the UI language.
-    let standardFonts = ["ko": "AppleSDGothicNeo", "ja": "HiraKakuInterface", "zh-Hant": "PingFangUITextTC", "yue-Hant": "PingFangUITextHK", "en": nil]
-    for language in InputLanguage.all {
-        featureCheck(standardFonts.keys.contains(language.id), "\(language.id) needs a standard font row")
-        let modes = [nil] + language.modeGlyphs.keys.sorted().map { Optional($0) }
-        let labels = Set(modes.flatMap { mode in IconStyle.allCases.compactMap { style -> String? in
-            if case let .text(label, _, _) = style.badge(for: language, mode: mode) { return label }; return nil } })
-        for label in labels.sorted() {
-            let text = AppDelegate.badgeText(label, language: language.id), fonts = glyphRunFonts(text)
-            // Latin letters must stay in the badge's own font; everything else needs the language's standard font.
-            let own = (text.attribute(.font, at: 0, effectiveRange: nil) as? NSFont).map { CTFontCopyPostScriptName($0 as CTFont) as String }
-            let expected = label.unicodeScalars.allSatisfy(\.isASCII) ? own : standardFonts[language.id] ?? nil
-            featureCheck(expected != nil && !fonts.isEmpty && fonts.allSatisfy { $0.contains(expected!) }, "\(language.id) badge \(label) is drawn in \(fonts), expected \(expected ?? "a standard font")")
-        }
-    }
+    let fontProblems = badgeFontProblems()
+    featureCheck(fontProblems.isEmpty, fontProblems.joined(separator: "; "))
     print("PASS: badge glyphs use their input language's Apple standard font: Apple SD Gothic Neo, Hiragino, PingFang TC and PingFang HK under a Korean UI")
 
     // The walk and screenshots show the names the system gives the sources in the UI language, read without enabling anything.

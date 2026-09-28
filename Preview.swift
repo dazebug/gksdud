@@ -48,6 +48,7 @@ struct PreviewState {
     var updateAvailable = false   // a cached release newer than this build
     var keyboardWarning = false   // one keyboard keeps failing and another is disconnected
     var longPressFailure = false  // the long-press checkbox tooltip shows the failure message
+    var keyboardDefault = true    // keyboards without their own choice are remapped
 }
 
 // A read-only look at the two system settings gksdud changes: the Input menu and the "Select the previous input source" shortcut.
@@ -68,6 +69,9 @@ final class PreviewFixture {
     final class Recorder { var trusted = true; var violations: [String] = [] }
     let delegate: AppDelegate, inputs: FakeInputSources, defaults: UserDefaults, recorder: Recorder
     let keyboardSettings: KeyboardSettingsController, mainMenu: NSMenu
+    // The content sizes the windows are built with, read before any layout. Text resists compression more than a window
+    // keeps its size, so content that needs more room grows the window when it is laid out instead of clipping.
+    let settingsSize: NSSize, sheetSize: NSSize
     private let suiteName: String, before = SystemSnapshot(), deniedBefore = SystemAccess.denied.count
     init(uiLanguage: String, state: PreviewState = PreviewState(), resolveNames: Bool = false) throws {
         guard let scene = PreviewScene.sources[uiLanguage] else { throw NSError(domain: "preview", code: 1, userInfo: [NSLocalizedDescriptionKey: "No preview scene for \(uiLanguage)"]) }
@@ -81,6 +85,7 @@ final class PreviewFixture {
         var devices: [KeyboardDevice] = [builtIn, virtual, wireless]
         let engine = Engine(defaults: defaults, discover: { devices }, shortcutPreferences: ShortcutPreferences(read: { [:] },
             write: { _ in throw refuse("shortcut write") }, activate: { throw refuse("shortcut activation") }))
+        if !state.keyboardDefault { engine.keyboards.defaultEnabled = false }
         engine.keyboards.reconcile(source: engine.source, target: engine.target.usage, active: true)
         if state.keyboardWarning {
             // Three failed writes raise the warning; the wireless keyboard stays known but disconnected.
@@ -99,6 +104,9 @@ final class PreviewFixture {
         delegate.buildWindow()
         let keyboardSettings = KeyboardSettingsController(manager: engine.keyboards) { [weak delegate] in delegate?.refreshKeyboardState() }
         delegate.keyboardSettings = keyboardSettings
+        settingsSize = delegate.window.contentView!.frame.size; sheetSize = keyboardSettings.window.contentView!.frame.size
+        // The status line the app fills in its launch repair; repair itself would reach the event tap and the shortcut.
+        delegate.refreshStatus()
         if state.longPressFailure, let current = inputs.current { delegate.showLongPressError(delegate.longPressFailureMessage(for: current)) }
         delegate.menuNeedsUpdate(delegate.statusMenu); delegate.menuWillOpen(delegate.statusMenu)
         self.delegate = delegate; self.inputs = inputs; self.defaults = defaults; self.recorder = recorder; self.suiteName = suiteName
