@@ -16,6 +16,11 @@ let targets = zip(13...20, [105, 107, 113, 106, 64, 79, 80, 90]).map {
     TargetKey(name: "F\($0.0)", usage: 0x700000068 + UInt64($0.0 - 13), keyCode: $0.1)
 }
 let sources: [UInt64] = [0x7000000e7, 0x7000000e6, 0x700000039, 0x7000000e4]
+// The switch key picker's titles, in the order of `sources`.
+var sourceKeyTitles: [String] {
+    [String(localized: "우측 Command ⌘", comment: "General tab, switch key picker: the right Command key."), String(localized: "우측 Option ⌥", comment: "General tab, switch key picker: the right Option key."),
+     String(localized: "Caps Lock ⇪", comment: "General tab, switch key picker: the Caps Lock key."), String(localized: "우측 Control ⌃", comment: "General tab, switch key picker: the right Control key.")]
+}
 typealias Mapping = [String: NSNumber]
 
 func targetConflict(_ mappings: [Mapping], source: UInt64, target: UInt64, owned: [String: String]?) -> Bool {
@@ -56,7 +61,7 @@ struct ShortcutPreferences {
         let domain = "com.apple.symbolichotkeys" as CFString
         CFPreferencesSetAppValue("AppleSymbolicHotKeys" as CFString, keys as CFDictionary, domain)
         guard CFPreferencesAppSynchronize(domain) else {
-            throw NSError(domain: "gksdud", code: 1, userInfo: [NSLocalizedDescriptionKey: "입력 소스 단축키를 저장하지 못했습니다."])
+            throw NSError(domain: "gksdud", code: 1, userInfo: [NSLocalizedDescriptionKey: String(localized: "입력 소스 단축키를 저장하지 못했습니다.", comment: "Error alert: saving the system's \"Select the previous input source\" shortcut failed.")])
         }
     }, activate: {
         try SystemAccess.check("shortcut activation")
@@ -67,7 +72,7 @@ struct ShortcutPreferences {
         process.arguments = ["-u", "-virtualSession"]
         try process.run(); process.waitUntilExit()
         guard process.terminationStatus == 0 else {
-            throw NSError(domain: "gksdud", code: 2, userInfo: [NSLocalizedDescriptionKey: "단축키 활성화에 실패했습니다. 다시 시도해주세요."])
+            throw NSError(domain: "gksdud", code: 2, userInfo: [NSLocalizedDescriptionKey: String(localized: "단축키 활성화에 실패했습니다. 다시 시도해주세요.", comment: "Error alert: macOS did not apply the changed \"Select the previous input source\" shortcut.")])
         }
     })
 }
@@ -90,7 +95,7 @@ final class Engine {
     var longPressCapsLock: Bool { defaults.bool(forKey: "longPressCapsLock") }
     var preserveCapsLock: Bool { defaults.object(forKey: "preserveCapsLock") == nil || defaults.bool(forKey: "preserveCapsLock") }
     var testInputText: String {
-        get { defaults.string(forKey: "testInputText") ?? "한dud한dud한dud한dud" }
+        get { defaults.string(forKey: "testInputText") ?? String(localized: "한dud한dud한dud한dud", comment: "General tab: default text of the switch test field, kept until the user edits it. It alternates a character typed in Korean with dud, a syllable typed in English mode, as the name gksdud is. Replace the Korean character with one of the UI language's own input, such as あ or 中, and keep dud.") }
         set { defaults.set(newValue, forKey: "testInputText") }
     }
     var target: TargetKey { targets.first { $0.name == defaults.string(forKey: "target") } ?? targets[6] }
@@ -139,7 +144,7 @@ final class Engine {
             guard let entry = raw as? [String: Any], (entry["enabled"] as? NSNumber)?.boolValue == true,
                   let value = entry["value"] as? [String: Any], let params = value["parameters"] as? [NSNumber], params.count == 3 else { continue }
             if params[1].intValue == target.keyCode && params[2].intValue == 0 {
-                throw NSError(domain: "asd", code: 5, userInfo: [NSLocalizedDescriptionKey: "\(target.name)은 다른 시스템 단축키에서 사용 중입니다. 다른 대상 키를 선택하세요."])
+                throw NSError(domain: "asd", code: 5, userInfo: [NSLocalizedDescriptionKey: String(localized: "\(target.name) 키는 다른 시스템 단축키에서 사용 중입니다. 다른 대상 키를 선택하세요.", comment: "Error alert: the chosen internal switch key already triggers another system shortcut. %@ is a function key name such as F19.")])
             }
         }
         if !defaults.bool(forKey: "shortcutBackedUp") || !Self.ownsShortcut(keys["60"], keyCode: managedShortcutKeyCode) {
@@ -172,7 +177,7 @@ final class Engine {
         let domain = "com.apple.TextInputMenu" as CFString
         CFPreferencesSetAppValue("visible" as CFString, value, domain)
         guard CFPreferencesAppSynchronize(domain) else {
-            throw NSError(domain: "gksdud", code: 10, userInfo: [NSLocalizedDescriptionKey: "기본 입력기 메뉴 표시 설정을 저장하지 못했습니다."])
+            throw NSError(domain: "gksdud", code: 10, userInfo: [NSLocalizedDescriptionKey: String(localized: "기본 입력기 메뉴 표시 설정을 저장하지 못했습니다.", comment: "Error alert: saving whether the system's input menu shows in the menu bar failed. gksdud hides that menu while its own icon is shown.")])
         }
         // This system agent is KeepAlive-managed by launchd; restart only it to reload preferences.
         let process = Process()
@@ -181,7 +186,7 @@ final class Engine {
         process.standardError = FileHandle.nullDevice
         try process.run(); process.waitUntilExit()
         guard process.terminationStatus == 0 || process.terminationStatus == 1 else {
-            throw NSError(domain: "gksdud", code: 11, userInfo: [NSLocalizedDescriptionKey: "기본 입력기 메뉴를 새로 고치지 못했습니다."])
+            throw NSError(domain: "gksdud", code: 11, userInfo: [NSLocalizedDescriptionKey: String(localized: "기본 입력기 메뉴를 새로 고치지 못했습니다.", comment: "Error alert: restarting the system process that draws the input menu failed, so showing or hiding that menu did not take effect.")])
         }
     }
     func hideSystemInputMenu() throws {
@@ -320,22 +325,22 @@ func setCapsLock(_ enabled: Bool) throws {
     try SystemAccess.check("Caps Lock change")
     let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOHIDSystem"))
     guard service != IO_OBJECT_NULL else {
-        throw NSError(domain: "gksdud", code: 20, userInfo: [NSLocalizedDescriptionKey: "Caps Lock 제어 장치를 찾지 못했습니다."])
+        throw NSError(domain: "gksdud", code: 20, userInfo: [NSLocalizedDescriptionKey: String(localized: "Caps Lock 제어 장치를 찾지 못했습니다.", comment: "Case tab: checkbox tooltip after gksdud could not change Caps Lock because the system service that controls it was not found.")])
     }
     defer { IOObjectRelease(service) }
     var connection: io_connect_t = 0
     let opened = IOServiceOpen(service, mach_task_self_, UInt32(kIOHIDParamConnectType), &connection)
     guard opened == KERN_SUCCESS else {
-        throw NSError(domain: "gksdud", code: Int(opened), userInfo: [NSLocalizedDescriptionKey: "Caps Lock 제어 연결에 실패했습니다."])
+        throw NSError(domain: "gksdud", code: Int(opened), userInfo: [NSLocalizedDescriptionKey: String(localized: "Caps Lock 제어 연결에 실패했습니다.", comment: "Case tab: checkbox tooltip after gksdud could not connect to the system service that controls Caps Lock.")])
     }
     defer { IOServiceClose(connection) }
     let result = IOHIDSetModifierLockState(connection, Int32(kIOHIDCapsLockState), enabled)
     guard result == KERN_SUCCESS else {
-        throw NSError(domain: "gksdud", code: Int(result), userInfo: [NSLocalizedDescriptionKey: "Caps Lock 상태를 변경하지 못했습니다."])
+        throw NSError(domain: "gksdud", code: Int(result), userInfo: [NSLocalizedDescriptionKey: String(localized: "Caps Lock 상태를 변경하지 못했습니다.", comment: "Case tab: checkbox tooltip after turning Caps Lock on or off failed.")])
     }
     var actual = false
     guard IOHIDGetModifierLockState(connection, Int32(kIOHIDCapsLockState), &actual) == KERN_SUCCESS, actual == enabled else {
-        throw NSError(domain: "gksdud", code: 21, userInfo: [NSLocalizedDescriptionKey: "Caps Lock 상태 변경을 확인하지 못했습니다."])
+        throw NSError(domain: "gksdud", code: 21, userInfo: [NSLocalizedDescriptionKey: String(localized: "Caps Lock 상태 변경을 확인하지 못했습니다.", comment: "Case tab: checkbox tooltip when Caps Lock, read back after gksdud turned it on or off, did not show the change.")])
     }
 }
 
@@ -387,8 +392,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     let updateSummary = NSTextView()
     let updateScroll = NSScrollView()
     let updateStatus = NSTextField(wrappingLabelWithString: "")
-    let updateButton = NSButton(title: "업데이트 설치", target: nil, action: nil)
-    let checkUpdateButton = NSButton(title: "업데이트 확인", target: nil, action: nil)
+    let updateButton = NSButton(title: String(localized: "업데이트 설치", comment: "About tab: button that downloads and installs the available update, then restarts gksdud."), target: nil, action: nil)
+    let checkUpdateButton = NSButton(title: String(localized: "업데이트 확인", comment: "About tab: button that checks for a new version now."), target: nil, action: nil)
     var specialButtons: [NSButton] = []
     let specialStatus = NSTextField(wrappingLabelWithString: "")
     var item: NSStatusItem?
@@ -410,9 +415,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     let iconPicker = NSPopUpButton()
     let languagePreview = NSImageView()
     let englishPreview = NSImageView()
-    let enabled = NSButton(checkboxWithTitle: "활성화", target: nil, action: nil)
-    let login = NSButton(checkboxWithTitle: "로그인 시 시작", target: nil, action: nil)
-    let showInMenuBar = NSButton(checkboxWithTitle: "메뉴바에 표시", target: nil, action: nil)
+    let enabled = NSButton(checkboxWithTitle: String(localized: "활성화", comment: "General tab: checkbox that turns gksdud on and off."), target: nil, action: nil)
+    let login = NSButton(checkboxWithTitle: String(localized: "로그인 시 시작", comment: "General tab: checkbox that opens gksdud at login."), target: nil, action: nil)
+    let showInMenuBar = NSButton(checkboxWithTitle: String(localized: "메뉴바에 표시", comment: "General tab: checkbox that shows the gksdud icon in the menu bar. While it is shown, gksdud hides the system's input menu."), target: nil, action: nil)
     let status = NSTextField(wrappingLabelWithString: "")
     var timer: Timer?
     var menuInputTimer: Timer?
@@ -432,10 +437,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     var capsRestoreGeneration = 0
     var capsRestoreTasks: [DispatchWorkItem] = []
     let nativePulseMarker = Int64.random(in: 1...Int64.max)
-    let pressAccess = NSButton(title: "접근성 권한 허용", target: nil, action: nil)
-    let pressSwitch = NSButton(checkboxWithTitle: "누를 때 전환", target: nil, action: nil)
-    let longPressSwitch = NSButton(checkboxWithTitle: "길게 눌러 대소문자 전환", target: nil, action: nil)
-    let preserveCapsSwitch = NSButton(checkboxWithTitle: "한영 전환시 대소문자 보존", target: nil, action: nil)
+    let pressAccess = NSButton(title: String(localized: "접근성 권한 허용", comment: "General tab: button that asks macOS for Accessibility access, which switching on key down needs."), target: nil, action: nil)
+    let pressSwitch = NSButton(checkboxWithTitle: String(localized: "누를 때 전환", comment: "General tab: checkbox that switches the input source when the key goes down instead of when it is released."), target: nil, action: nil)
+    let longPressSwitch = NSButton(checkboxWithTitle: String(localized: "길게 눌러 대소문자 전환", comment: "Case tab: checkbox. Holding the switch key switches to English and toggles Caps Lock."), target: nil, action: nil)
+    let preserveCapsSwitch = NSButton(checkboxWithTitle: String(localized: "한영 전환시 대소문자 보존", comment: "Case tab: checkbox that keeps English uppercase or lowercase across input source switches. The Korean says switching between Korean and English; translate it as switching between the user's two input sources."), target: nil, action: nil)
     var permissionHighlightGeneration = 0
     var returningFromPermissionSettings = false
     var permissionSettingsWasActive = false
@@ -568,7 +573,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     func updatePressAccess() {
         let trusted = environment.accessibilityTrusted()
         let ready = keyTap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false
-        pressAccess.title = trusted ? "권한 허용 완료" : "접근성 권한 허용"
+        pressAccess.title = trusted ? String(localized: "권한 허용 완료", comment: "General tab: title of the Accessibility access button, disabled, once access is granted.")
+            : String(localized: "접근성 권한 허용", comment: "General tab: button that asks macOS for Accessibility access, which switching on key down needs.")
         pressAccess.isEnabled = !trusted
         pressSwitch.state = trusted && engine.switchOnKeyDown ? .on : .off
         pressSwitch.isEnabled = trusted
@@ -576,13 +582,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         longPressSwitch.isEnabled = trusted
         preserveCapsSwitch.state = trusted && engine.preserveCapsLock ? .on : .off
         preserveCapsSwitch.isEnabled = trusted
-        preserveCapsSwitch.toolTip = "영어의 대소문자 상태를 기억해 한글에서 영어로 돌아올 때 복원합니다. 길게 누르기와 별도로 설정할 수 있습니다."
-        longPressSwitch.toolTip = trusted ? "선택한 한영 키를 0.5초 누르면 영어로 전환하고 Caps Lock을 켜거나 끕니다." : "일반 탭의 접근성 권한 허용 버튼으로 권한을 허용해주세요."
-        pressAccess.toolTip = "키를 누르는 순간 전환하려면 접근성 권한이 필요합니다."
-        pressSwitch.toolTip = !trusted ? "오른쪽 버튼으로 접근성 권한을 허용해주세요. 허용 전에는 기존 방식으로 동작합니다." :
-            !engine.switchOnKeyDown ? "기존 macOS 단축키 방식으로 전환합니다." :
-            !engine.active ? "활성화를 켜면 키를 누를 때 전환합니다." :
-            ready ? "키를 누르는 순간 전환 · 길게 눌러도 한 번만 전환" : "권한 반영을 기다리는 중입니다. 계속 전환되지 않으면 앱을 다시 실행하세요."
+        preserveCapsSwitch.toolTip = String(localized: "영어의 대소문자 상태를 기억해 한글에서 영어로 돌아올 때 복원합니다. 길게 누르기와 별도로 설정할 수 있습니다.", comment: "Case tab: tooltip of the case preservation checkbox. Korean input stands for the non-English input source; name the user's own input instead. Long press is the checkbox above.")
+        longPressSwitch.toolTip = trusted ? String(localized: "선택한 한영 키를 0.5초 누르면 영어로 전환하고 Caps Lock을 켜거나 끕니다.", comment: "Case tab: tooltip of the long-press checkbox. The key is the switch key chosen in the General tab.")
+            : String(localized: "일반 탭의 접근성 권한 허용 버튼으로 권한을 허용해주세요.", comment: "Case tab: tooltip of the long-press checkbox without Accessibility access. Use the same words as the General tab and its Accessibility access button.")
+        pressAccess.toolTip = String(localized: "키를 누르는 순간 전환하려면 접근성 권한이 필요합니다.", comment: "General tab: tooltip of the Accessibility access button.")
+        pressSwitch.toolTip = !trusted ? String(localized: "오른쪽 버튼으로 접근성 권한을 허용해주세요. 허용 전에는 기존 방식으로 동작합니다.", comment: "General tab: tooltip of the switch-on-key-down checkbox without Accessibility access. The access button is to its right; until access is granted, switching works as before, on key release through the macOS shortcut.") :
+            !engine.switchOnKeyDown ? String(localized: "기존 macOS 단축키 방식으로 전환합니다.", comment: "General tab: tooltip of the switch-on-key-down checkbox while it is off. Switching goes through the macOS shortcut, on key release.") :
+            !engine.active ? String(localized: "활성화를 켜면 키를 누를 때 전환합니다.", comment: "General tab: tooltip of the switch-on-key-down checkbox while gksdud is off. It names the enable checkbox; use that checkbox's translation.") :
+            ready ? String(localized: "키를 누르는 순간 전환 · 길게 눌러도 한 번만 전환", comment: "General tab: tooltip of the switch-on-key-down checkbox while it works. The input source switches the moment the key goes down, and only once while the key is held.")
+            : String(localized: "권한 반영을 기다리는 중입니다. 계속 전환되지 않으면 앱을 다시 실행하세요.", comment: "General tab: tooltip of the switch-on-key-down checkbox while macOS has not yet applied the Accessibility access.")
     }
     @objc func togglePressSwitch() {
         cancelLongPress()
@@ -735,10 +743,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     func buildMainMenu() -> NSMenu {
         let mainMenu = NSMenu()
         let appEntry = NSMenuItem(); let appMenu = NSMenu(title: "gksdud")
-        appMenu.addItem(withTitle: "gksdud 종료", action: #selector(quit), keyEquivalent: "q").target = self
+        appMenu.addItem(withTitle: String(localized: "gksdud 종료", comment: "App menu: item that quits gksdud (⌘Q)."), action: #selector(quit), keyEquivalent: "q").target = self
         appEntry.submenu = appMenu; mainMenu.addItem(appEntry)
-        let editEntry = NSMenuItem(); let editMenu = NSMenu(title: "편집")
-        for (title, action, key) in [("잘라내기", "cut:", "x"), ("복사", "copy:", "c"), ("붙여넣기", "paste:", "v"), ("모두 선택", "selectAll:", "a")] {
+        let editEntry = NSMenuItem(); let editMenu = NSMenu(title: String(localized: "편집", comment: "Main menu: title of the Edit menu, which the settings window's text field uses."))
+        for (title, action, key) in [(String(localized: "잘라내기", comment: "Edit menu: Cut (⌘X)."), "cut:", "x"), (String(localized: "복사", comment: "Edit menu: Copy (⌘C)."), "copy:", "c"),
+                                     (String(localized: "붙여넣기", comment: "Edit menu: Paste (⌘V)."), "paste:", "v"), (String(localized: "모두 선택", comment: "Edit menu: Select All (⌘A)."), "selectAll:", "a")] {
             editMenu.addItem(withTitle: title, action: Selector(action), keyEquivalent: key)
         }
         editEntry.submenu = editMenu; mainMenu.addItem(editEntry)
@@ -849,14 +858,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         let source = sources[picker.indexOfSelectedItem]
         let target = targets[targetPicker.indexOfSelectedItem]
         if engine.targetInUse(source, target: target) {
-            let alert = NSAlert(); alert.messageText = "\(target.name)은 다른 키 매핑에서 사용 중입니다."
-            alert.informativeText = "다른 앱과 충돌할 수 있습니다. 대상 키를 바꿔주세요."
+            let alert = NSAlert(); alert.messageText = String(localized: "\(target.name) 키는 다른 키 매핑에서 사용 중입니다.", comment: "Alert title: another key mapping already produces the chosen internal switch key. %@ is a function key name such as F19.")
+            alert.informativeText = String(localized: "다른 앱과 충돌할 수 있습니다. 대상 키를 바꿔주세요.", comment: "Alert text under the title about the internal switch key being in use: it may conflict with another app, so choose another internal switch key.")
             alert.runModal(); resetSelection(); return
         }
         if engine.conflicts(source, target: target) {
-            let alert = NSAlert(); alert.messageText = "이 키에 다른 매핑이 있습니다."
-            alert.informativeText = "선택한 키를 한영 전환 전용으로 바꿉니다. 다른 앱에서도 이 키의 재매핑을 꺼주세요. 기존 매핑은 해제 시 복원됩니다."
-            alert.addButton(withTitle: "변경"); alert.addButton(withTitle: "취소")
+            let alert = NSAlert(); alert.messageText = String(localized: "이 키에 다른 매핑이 있습니다.", comment: "Alert title: the chosen switch key is already remapped, for example by another app.")
+            alert.informativeText = String(localized: "선택한 키를 한영 전환 전용으로 바꿉니다. 다른 앱에서도 이 키의 재매핑을 꺼주세요. 기존 매핑은 해제 시 복원됩니다.", comment: "Alert text: gksdud will use the key only for switching input sources, the other app should stop remapping it, and turning gksdud off restores the earlier mapping.")
+            alert.addButton(withTitle: String(localized: "변경", comment: "Alert button: go ahead and use the key for switching.")); alert.addButton(withTitle: String(localized: "취소", comment: "Alert button: keep the current switch key."))
             guard alert.runModal() == .alertFirstButtonReturn else { resetSelection(); return }
         }
         do { _ = try engine.apply(source: source, target: target); lastError = ""; stickyError = ""; repairFailed = false; ensureKeyTap(); refreshStatus() } catch { report(error); resetSelection() }
@@ -879,10 +888,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     // Only conditions the user must act on; each stays until it is resolved.
     func refreshStatus() {
         let result = engine.keyboards.result
-        status.stringValue = result.pending > 0 ? "키보드 설정을 다시 적용하고 있습니다."
+        status.stringValue = result.pending > 0 ? String(localized: "키보드 설정을 다시 적용하고 있습니다.", comment: "Settings window: status line at the bottom, above the tab buttons, while gksdud applies the key mapping to the keyboards again.")
             : !stickyError.isEmpty ? stickyError
-            : engine.active && result.selected == 0 ? "적용할 키보드 연결 대기 중"
-            : window.isVisible && login.state == .on && environment.loginItemStatus() == .requiresApproval ? "시스템 설정 → 로그인 항목에서 gksdud를 허용하세요." : ""
+            : engine.active && result.selected == 0 ? String(localized: "적용할 키보드 연결 대기 중", comment: "Settings window: status line at the bottom, above the tab buttons, while gksdud is on but none of the keyboards it remaps is connected.")
+            : window.isVisible && login.state == .on && environment.loginItemStatus() == .requiresApproval ? String(localized: "시스템 설정 → 로그인 항목에서 gksdud를 허용하세요.", comment: "Settings window: status line at the bottom, above the tab buttons, when macOS waits for the user to allow the login item. Use Apple's names for System Settings and Login Items.") : ""
     }
     var lastError = ""
     var stickyError = ""
@@ -1026,9 +1035,9 @@ if CommandLine.arguments.dropFirst().first == "--install-update" {
     let suiteName = "io.gksdud.inputswitch.defaults-test.\(UUID().uuidString)"
     let suite = UserDefaults(suiteName: suiteName)!
     let preferences = Engine(defaults: suite)
-    precondition(preferences.testInputText == "한dud한dud한dud한dud")
-    preferences.testInputText = "한영 테스트 ABC"
-    precondition(Engine(defaults: UserDefaults(suiteName: suiteName)!).testInputText == "한영 테스트 ABC")
+    precondition(preferences.testInputText == "한dud한dud한dud한dud") // l10n-ignore: self-test data
+    preferences.testInputText = "한영 테스트 ABC" // l10n-ignore: self-test data
+    precondition(Engine(defaults: UserDefaults(suiteName: suiteName)!).testInputText == "한영 테스트 ABC") // l10n-ignore: self-test data
     preferences.testInputText = ""
     precondition(Engine(defaults: UserDefaults(suiteName: suiteName)!).testInputText.isEmpty, "Empty input must not reset to default")
     print("PASS: test input default, edited text persistence, empty text persistence")

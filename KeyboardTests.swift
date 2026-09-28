@@ -351,6 +351,9 @@ func runRightControlTests() {
         defaults.set(true, forKey: "active")
     }
     print("PASS: right Control across F13-F20, left Control preservation, source changes, saved selection, restart, disable restoration")
+    // The picker shows sourceKeyTitles[i] for sources[i]; Korean users keep today's titles.
+    featureCheck(sourceKeyTitles == ["우측 Command ⌘", "우측 Option ⌥", "Caps Lock ⇪", "우측 Control ⌃"], "source key titles are \(sourceKeyTitles)")
+    print("PASS: switch key titles line up with the source keys and keep the Korean titles")
 }
 
 // Renders native UI against fake devices; never opens a real HID client or applies system settings.
@@ -433,8 +436,7 @@ func renderKeyboardUI(to directory: String) throws {
     precondition(delegate.tabButtons[3].accessibilityLabel() == "gksdud 탭" && delegate.updateButton.isHidden && updateEntry.isHidden)
     defaults.set(false, forKey: "active")
     delegate.resetSelection()
-    for (title, usage): (String, UInt64) in [("우측 Command ⌘", 0x7000000e7), ("우측 Option ⌥", 0x7000000e6),
-                                          ("Caps Lock ⇪", 0x700000039), ("우측 Control ⌃", 0x7000000e4)] {
+    for (title, usage) in zip(sourceKeyTitles, sources) {
         delegate.picker.selectItem(withTitle: title)
         precondition(delegate.picker.sendAction(delegate.picker.action, to: delegate.picker.target))
         precondition(engine.source == usage, "The selected label must save the matching HID key")
