@@ -249,7 +249,7 @@ extension AppDelegate {
                let identity = Self.sourceIdentity(current), identity.language.hasPrefix("en") { return identity }
             return self?.availableSource("en").flatMap(Self.sourceIdentity)
         }, select: { identity in
-            guard let source = Self.sourceForID(identity.id) else { return false }
+            guard let source = Self.sourceForID(identity.id), SystemAccess.permits("input source selection") else { return false }
             return TISSelectInputSource(source) == noErr
         }, frontmost: { NSWorkspace.shared.frontmostApplication?.processIdentifier }, post: { event in
             event.post(tap: .cghidEventTap)

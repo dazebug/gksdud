@@ -52,12 +52,14 @@ struct ShortcutPreferences {
         CFPreferencesAppSynchronize(domain)
         return CFPreferencesCopyAppValue("AppleSymbolicHotKeys" as CFString, domain) as? [String: Any] ?? [:]
     }, write: { keys in
+        try SystemAccess.check("shortcut write")
         let domain = "com.apple.symbolichotkeys" as CFString
         CFPreferencesSetAppValue("AppleSymbolicHotKeys" as CFString, keys as CFDictionary, domain)
         guard CFPreferencesAppSynchronize(domain) else {
             throw NSError(domain: "gksdud", code: 1, userInfo: [NSLocalizedDescriptionKey: "입력 소스 단축키를 저장하지 못했습니다."])
         }
     }, activate: {
+        try SystemAccess.check("shortcut activation")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings")
         // Apply session shortcuts without reapplying physical-device preferences,
@@ -164,6 +166,7 @@ final class Engine {
         return count
     }
     func setSystemInputMenu(_ value: CFPropertyList?) throws {
+        try SystemAccess.check("input menu change")
         settingsUpdateDepth += 1
         defer { settingsUpdateDepth -= 1 }
         let domain = "com.apple.TextInputMenu" as CFString
@@ -314,6 +317,7 @@ struct EnglishCapsState {
 }
 
 func setCapsLock(_ enabled: Bool) throws {
+    try SystemAccess.check("Caps Lock change")
     let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOHIDSystem"))
     guard service != IO_OBJECT_NULL else {
         throw NSError(domain: "gksdud", code: 20, userInfo: [NSLocalizedDescriptionKey: "Caps Lock 제어 장치를 찾지 못했습니다."])
@@ -480,6 +484,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         if !engine.active || !engine.longPressCapsLock { cancelLongPress() }
         guard engine.active, engine.switchOnKeyDown || engine.longPressCapsLock || engine.preserveCapsLock || specialMode != .none, keyTap == nil else { updatePressAccess(); return }
         let mask = (CGEventMask(1) << CGEventType.keyDown.rawValue) | (CGEventMask(1) << CGEventType.keyUp.rawValue) | (CGEventMask(1) << CGEventType.flagsChanged.rawValue) | (CGEventMask(1) << CGEventType.leftMouseDown.rawValue) | (CGEventMask(1) << CGEventType.rightMouseDown.rawValue) | (CGEventMask(1) << CGEventType.otherMouseDown.rawValue)
+        guard SystemAccess.permits("event tap") else { updatePressAccess(); return }
         guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
             eventsOfInterest: mask, callback: { _, type, event, info in
                 guard let info else { return Unmanaged.passUnretained(event) }
@@ -939,7 +944,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             if entry.action == #selector(selectEnglish) { entry.state = language.hasPrefix("en") ? .on : .off }
         }
     }
-    func selectLanguage(_ prefix: String) { if let source = availableSource(prefix) { rememberCapsBeforeSwitch(); _ = TISSelectInputSource(source) }; updateInputIndicator() }
+    func selectLanguage(_ prefix: String) { if let source = availableSource(prefix), SystemAccess.permits("input source selection") { rememberCapsBeforeSwitch(); _ = TISSelectInputSource(source) }; updateInputIndicator() }
     @objc func selectKorean() { selectLanguage("ko") }
     @objc func selectEnglish() { selectLanguage("en") }
     @objc func menuEnabled() { enabled.state = engine.active ? .off : .on; toggleEnabled() }
@@ -954,6 +959,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
     @objc func toggleLogin() {
         do {
+            try SystemAccess.check("login item change")
             if login.state == .on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             stickyError = ""; refreshStatus()
         } catch { login.state = SMAppService.mainApp.status == .enabled ? .on : .off; report(error) }
@@ -1050,10 +1056,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 if CommandLine.arguments.dropFirst().first == "--install-update" {
     do { try UpdateInstaller.runHelper(CommandLine.arguments) } catch { fputs("Update helper failed: \(error.localizedDescription)\n", stderr); exit(1) }
 } else if let index = CommandLine.arguments.firstIndex(of: "--render-keyboard-ui"), CommandLine.arguments.count > index + 1 {
+    SystemAccess.lock()
     do { try renderKeyboardUI(to: CommandLine.arguments[index + 1]) } catch { fputs("UI rendering failed: \(error)\n", stderr); exit(1) }
 } else if CommandLine.arguments.contains("--probe-option-input") {
     do { try probeOptionInput() } catch { fputs("Input probe failed: \(error)\n", stderr); exit(1) }
 } else if CommandLine.arguments.contains("--self-test") {
+    SystemAccess.lock()
     setbuf(stdout, nil)
     do { try runSettingsReentrancyTests() } catch { fputs("Settings reentrancy tests failed: \(error)\n", stderr); exit(1) }
     do { try runShortcutRestoreTests() } catch { fputs("Shortcut tests failed: \(error)\n", stderr); exit(1) }

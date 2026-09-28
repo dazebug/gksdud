@@ -11,6 +11,7 @@ func featureCheck(_ condition: @autoclosure () -> Bool, _ message: String = "", 
 }
 
 func runFeatureTests() {
+    runSystemAccessTests()
     featureCheck(ReleaseVersion("v1.10.0")! > ReleaseVersion("1.9.9")!)
     featureCheck(ReleaseVersion("1.2")! == ReleaseVersion("1.2.0")!)
     for invalid in ["pre-v1.3.0", "1.3.0-beta", "1..2", "1.2x", "", "1.2.99999999999999999999999"] { featureCheck(ReleaseVersion(invalid) == nil) }
@@ -59,6 +60,18 @@ func runFeatureTests() {
     runOptionInputTests()
     runOptionRepeatTests()
     runNativeOptionSymbolTests()
+}
+
+// Exercises only the latch: calling a guarded system closure here would change the live setup whenever its guard is missing.
+func runSystemAccessTests() {
+    featureCheck(SystemAccess.isLocked, "latch must be locked in --self-test")
+    let recorded = SystemAccess.denied.count
+    featureCheck(!SystemAccess.permits("probe"), "a locked latch must refuse every action")
+    featureCheck(SystemAccess.denied.count == recorded + 1 && SystemAccess.denied.last == "probe", "a refusal must be recorded in denied")
+    do { try SystemAccess.check("probe"); featureCheck(false, "check must throw while locked") }
+    catch { featureCheck((error as? SystemAccess.Denied)?.action == "probe" && error.localizedDescription.contains("probe"), "check must throw SystemAccess.Denied naming the action") }
+    featureCheck(SystemAccess.denied.suffix(2) == ["probe", "probe"], "check must record its refusal too")
+    print("PASS: system access latch locked in --self-test, refusals recorded, check throws SystemAccess.Denied")
 }
 
 func runOptionInputTests() {

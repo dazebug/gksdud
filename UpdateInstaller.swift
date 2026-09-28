@@ -213,6 +213,7 @@ final class UpdateInstaller: @unchecked Sendable {
         guard !busy else { return }
         let installed = Bundle.main.bundleURL.resolvingSymlinksInPath()
         do {
+            try SystemAccess.check("update install")
             _ = try UpdateValidation.installedRequirement(installed)
             guard FileManager.default.isWritableFile(atPath: installed.deletingLastPathComponent().path),
                   FileManager.default.isWritableFile(atPath: installed.path) else {

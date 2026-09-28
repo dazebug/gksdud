@@ -99,6 +99,7 @@ final class HIDKeyboardDevice: KeyboardDevice {
         return mappings
     }
     func writeMappings(_ mappings: [Mapping]) throws {
+        try SystemAccess.check("key mapping write")
         guard IOHIDServiceClientSetProperty(service, "UserKeyMapping" as CFString, mappings as CFArray) else { throw KeyboardError.write }
     }
     static func discover() throws -> [KeyboardDevice] {
