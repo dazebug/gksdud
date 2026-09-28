@@ -1,6 +1,12 @@
 import AppKit
 
 func runLocalizationTests() {
+    let field = NSTextField(string: ""), role = field.cell?.accessibilityRoleDescription() ?? ""
+    field.setAccessibilityLabel("gksdud \(role)"); let named = repeatedRole(field)
+    featureCheck(!role.isEmpty && named == role, "a text field labeled \"gksdud \(role)\" names its role, but the walk's check found \(named ?? "none")")
+    field.setAccessibilityLabel("한영 전환 테스트 입력창")
+    featureCheck(repeatedRole(field) == nil, "the Korean test field label does not name the role \(role), but the walk's check found it")
+    print("PASS: the localization walk finds accessibility labels that name their control's role")
     featureCheck(AppLanguage.resolve(localizations: [], preferred: ["en"]) == "ko", "a bundle without localizations, like the bare binary, must resolve to ko")
     featureCheck(AppLanguage.resolve(localizations: ["ko", "ja", "zh-Hant"], preferred: ["ja", "ja"]) == "ja", "the bundle's first preferred localization must win")
     featureCheck(["ko", "en", "ja", "zh-Hant"].map(AppLanguage.name(of:)) == ["한국어", "영어", "일본어", "중국어(번체)"], "language names must be CLDR names in the UI language")
@@ -64,11 +70,11 @@ func runLocalizationTest(expected: String, strict: Bool) {
     errors += walk.errors
     if !SystemAccess.denied.isEmpty { errors.append("blocked system actions: \(SystemAccess.denied.joined(separator: ", "))") }
     let korean = expected == "ko" ? [] : walk.strings.filter { containsHangul($0.key) }.sorted { ($0.value, $0.key) < ($1.value, $1.key) }
-    let warnings = korean.map { "Korean text in \($0.value): \($0.key)" } + walk.clipped
+    let warnings = korean.map { "Korean text in \($0.value): \($0.key)" } + walk.clipped + walk.repeatedRoles
     warnings.forEach { fputs("warning: \(expected) localization: \($0.replacingOccurrences(of: "\n", with: "\\n"))\n", stderr) }
     guard errors.isEmpty else { errors.forEach { fputs("FAIL: \(expected) localization: \($0)\n", stderr) }; exit(1) }
     let summary = "resolved \(resolved) (Locale \(locale.identifier)), \(detail), \(walk.states) states, \(walk.strings.count) strings, \(expected == "ko" ? "" : "\(korean.count) Korean, ")"
-        + "\(walk.clipped.count) clipped, untouched: \(SystemAccess.denied.count) blocked system actions, \(walk.selections) input-source selections"
+        + "\(walk.clipped.count) clipped, \(walk.repeatedRoles.count) labels naming their role, untouched: \(SystemAccess.denied.count) blocked system actions, \(walk.selections) input-source selections"
     guard !strict || warnings.isEmpty else { fputs("FAIL: \(expected) localization: \(warnings.count) warnings in strict mode; \(summary)\n", stderr); exit(1) }
     print("PASS: \(expected) localization: \(summary)")
 }
@@ -77,6 +83,7 @@ func runLocalizationTest(expected: String, strict: Bool) {
 struct UIWalk {
     var strings: [String: String] = [:]
     var clipped: [String] = []
+    var repeatedRoles: [String] = []
     var errors: [String] = []
     var states = 0, selections = 0
 }
@@ -112,6 +119,9 @@ func walkUI(_ language: String) -> UIWalk {
             default: break
             }
             collect(view.toolTip, "\(kind) tooltip"); collect(view.accessibilityLabel(), "\(kind) accessibility label")
+            if let role = repeatedRole(view), let label = view.accessibilityLabel(), reported.insert("\(label) \(role)").inserted {
+                walk.repeatedRoles.append("state \(state), \(kind): the accessibility label \"\(label)\" names its role \"\(role)\", which VoiceOver already speaks")
+            }
             if !view.isHiddenOrHasHiddenAncestor, let problem = layoutProblem(view, in: content, built: size, scrolled: scrolled), reported.insert(problem).inserted { walk.clipped.append("state \(state), \(place): \(problem)") }
             view.subviews.forEach { visit($0, place, in: content, built: size, scrolled: scrolled || $0 is NSClipView) }
         }
@@ -185,6 +195,14 @@ func layoutProblem(_ view: NSView, in content: NSView, built size: NSSize, scrol
     guard !scrolled, view is NSControl, !frame.isEmpty, let superview = view.superview else { return nil }
     let shown = content.convert(frame, from: superview)
     return NSRect(origin: .zero, size: size).insetBy(dx: -1, dy: -1).contains(shown) ? nil : "\(name) at \(shown) is outside the \(Int(size.width))×\(Int(size.height)) pt window"
+}
+
+// The role a view's accessibility label names. VoiceOver speaks the role after the label, so that role would be heard twice.
+// A control's cell carries its role; the control view itself reports an unknown role.
+func repeatedRole(_ view: NSView) -> String? {
+    guard let label = view.accessibilityLabel(), let role = (view as? NSControl)?.cell?.accessibilityRoleDescription() ?? view.accessibilityRoleDescription(),
+          !role.isEmpty, label.localizedCaseInsensitiveContains(role) else { return nil }
+    return role
 }
 
 // Hangul Jamo, compatibility Jamo, Jamo extensions A and B, and syllables.
