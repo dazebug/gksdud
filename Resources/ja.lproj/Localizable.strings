@@ -39,8 +39,8 @@
 
 /* SettingsWindow.swift:24 General tab: placeholder of the empty switch test field. The Korean says try switching between Korean and English; translate it as trying the input source switch. */
 "한영 전환을 테스트해보세요" = "切り替えを試してみてください";
-/* SettingsWindow.swift:25 General tab: accessibility label of the text field for trying the input source switch. */
-"한영 전환 테스트 입력창" = "切り替えのテスト用テキストフィールド";
+/* SettingsWindow.swift:25 General tab: accessibility label of the text field for trying the input source switch. VoiceOver names the control type after the label, so leave it out. */
+"한영 전환 테스트 입력창" = "入力ソースの切り替えテスト";
 /* SettingsWindow.swift:42 Settings window: title of the General tab button. */
 "일반" = "一般";
 /* SettingsWindow.swift:42 Settings window: title of the tab button for uppercase and lowercase (Caps Lock) settings. */
@@ -56,7 +56,7 @@
 /* SettingsWindow.swift:115 General tab: label of the internal switch key picker (F13-F20). gksdud turns the switch key into this key and makes it the system's "Select the previous input source" shortcut. */
 "내부 전환 키" = "内部切り替えキー";
 /* SettingsWindow.swift:116 General tab: two-line hint under the internal switch key picker. Quote Apple's own name of the "Select the previous input source" shortcut. The second line asks for a key with no function that no other app uses. */
-"시스템의 '이전 입력 소스 선택' 단축키의 값을 변경합니다.\n다른 앱과 겹치지 않는, 기능 없는 키를 골라주세요." = "システムの“前の入力ソースを選択”ショートカットを変更します。\nほかのアプリと重ならない、機能のないキーを選んでください。";
+"시스템의 '이전 입력 소스 선택' 단축키의 값을 변경합니다.\n다른 앱과 겹치지 않는, 기능 없는 키를 골라주세요." = "システムの“前の入力ソースを選択”ショートカットを変更します。\nほかのアプリが使用していない、機能のないキーを選んでください。";
 /* SettingsWindow.swift:125 General tab: two-line hint under the menu bar checkbox. The gksdud icon replaces the system's input menu, and ⌘-dragging moves it. */
 "기존 메뉴바 입력기를 대체합니다.\n⌘+드래그로 위치를 옮길 수 있어요." = "システムの入力メニューを置き換えます。\n⌘キーを押しながらドラッグすると移動できます。";
 /* SettingsWindow.swift:128 General tab: accessibility label of the menu bar icon style picker, whose items pair an input language badge with an English one. */
@@ -64,7 +64,7 @@
 /* SettingsWindow.swift:133 General tab: label of the menu bar icon style picker and its previews. */
 "메뉴바 아이콘" = "メニューバーアイコン";
 /* SettingsWindow.swift:138 Case tab: hint under the long-press checkbox. A press switches the input source at once; holding the key toggles uppercase and lowercase. */
-"누른 즉시 한영 전환, 길게 유지시 대소문자 전환" = "押すとすぐに切り替え、長押しで大文字/小文字を切り替え";
+"누른 즉시 한영 전환, 길게 유지시 대소문자 전환" = "押すとすぐに入力ソースを、長押しで大文字/小文字を切り替え";
 /* SettingsWindow.swift:141 Special characters tab: checkbox. Option characters are typed as in English even in Korean input. It works only for Korean input; say so in translations. */
 "영어처럼 특수문자 입력" = "韓国語入力でも英語と同じように特殊文字を入力";
 /* SettingsWindow.swift:142 Special characters tab: checkbox that blocks Option characters, so Option with a letter types the plain letter. It works in every input language. */
@@ -156,7 +156,7 @@
 /* UpdateInstaller.swift:139 About tab: update status when the downloaded archive holds paths outside gksdud.app. */
 "업데이트 압축 파일의 경로가 올바르지 않습니다." = "アップデートのアーカイブ内のパスが正しくありません。";
 /* UpdateInstaller.swift:144 About tab: update status when the downloaded archive holds links, which gksdud does not accept. */
-"지원하지 않는 링크가 압축 파일에 포함되어 있습니다." = "アーカイブに対応していないリンクが含まれています。";
+"지원하지 않는 링크가 압축 파일에 포함되어 있습니다." = "対応していないリンクがアーカイブに含まれています。";
 /* UpdateInstaller.swift:149 About tab: update status when the downloaded archive would unpack beyond the size limit. */
 "업데이트 압축 파일이 너무 큽니다." = "アップデートのアーカイブが大きすぎます。";
 /* UpdateInstaller.swift:153 About tab: update status when the downloaded archive has no content. */
@@ -277,6 +277,6 @@
 /* main.swift:891 Settings window: status line at the bottom, above the tab buttons, while gksdud applies the key mapping to the keyboards again. */
 "키보드 설정을 다시 적용하고 있습니다." = "キーボードの設定を再適用しています。";
 /* main.swift:893 Settings window: status line at the bottom, above the tab buttons, while gksdud is on but none of the keyboards it remaps is connected. */
-"적용할 키보드 연결 대기 중" = "適用するキーボードの接続を待機中";
+"적용할 키보드 연결 대기 중" = "対象キーボードの接続を待機中";
 /* main.swift:894 Settings window: status line at the bottom, above the tab buttons, when macOS waits for the user to allow the login item. Use Apple's names for System Settings and Login Items. */
-"시스템 설정 → 로그인 항목에서 gksdud를 허용하세요." = "“システム設定 → ログイン項目”でgksdudを許可してください。";
+"시스템 설정 → 로그인 항목에서 gksdud를 허용하세요." = "“システム設定”＞“ログイン項目”でgksdudを許可してください。";

@@ -22,7 +22,7 @@ extension AppDelegate {
         testInput.stringValue = engine.testInputText; testInput.delegate = self
         testInput.font = .monospacedSystemFont(ofSize: 21, weight: .medium)
         testInput.placeholderString = String(localized: "한영 전환을 테스트해보세요", comment: "General tab: placeholder of the empty switch test field. The Korean says try switching between Korean and English; translate it as trying the input source switch.")
-        testInput.setAccessibilityLabel(String(localized: "한영 전환 테스트 입력창", comment: "General tab: accessibility label of the text field for trying the input source switch."))
+        testInput.setAccessibilityLabel(String(localized: "한영 전환 테스트 입력창", comment: "General tab: accessibility label of the text field for trying the input source switch. VoiceOver names the control type after the label, so leave it out."))
         testInput.cell?.isScrollable = true; testInput.cell?.wraps = false
         testInput.usesSingleLineMode = true; testInput.lineBreakMode = .byClipping
         testInput.heightAnchor.constraint(equalToConstant: 34).isActive = true

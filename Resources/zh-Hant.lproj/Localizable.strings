@@ -33,14 +33,14 @@
 /* KeyboardSettings.swift:123 Keyboard settings sheet: hint under the default switch while it is On. Every keyboard is remapped unless its own switch is Off. */
 "기본적으로 모든 키보드에 적용됩니다." = "預設會套用到所有鍵盤。";
 /* KeyboardSettings.swift:124 Keyboard settings sheet: hint under the default switch while it is Off. Only keyboards whose own switch is On are remapped. Keep On in English: it is the label of that switch segment. */
-"On으로 설정한 키보드에만 적용됩니다." = "只會套用到設為On的鍵盤。";
+"On으로 설정한 키보드에만 적용됩니다." = "只會套用到設為「On」的鍵盤。";
 /* KeyboardSettings.swift:156 Keyboard settings sheet: accessibility label of a keyboard's Off/Default/On switch. %@ is the keyboard name. */
 "%@ 적용 설정" = "%@的套用設定";
 
 /* SettingsWindow.swift:24 General tab: placeholder of the empty switch test field. The Korean says try switching between Korean and English; translate it as trying the input source switch. */
 "한영 전환을 테스트해보세요" = "嘗試切換輸入方式";
-/* SettingsWindow.swift:25 General tab: accessibility label of the text field for trying the input source switch. */
-"한영 전환 테스트 입력창" = "測試切換輸入方式的文字欄位";
+/* SettingsWindow.swift:25 General tab: accessibility label of the text field for trying the input source switch. VoiceOver names the control type after the label, so leave it out. */
+"한영 전환 테스트 입력창" = "輸入方式切換測試";
 /* SettingsWindow.swift:42 Settings window: title of the General tab button. */
 "일반" = "一般";
 /* SettingsWindow.swift:42 Settings window: title of the tab button for uppercase and lowercase (Caps Lock) settings. */
@@ -72,7 +72,7 @@
 /* SettingsWindow.swift:146 Special characters tab: hint under the type-like-English checkbox: in Korean input, ⌥8 still types •. Name Korean input explicitly in translations, because the option works only there. */
 "한글 상태에서도 ⌥8 → • 처럼 입력합니다." = "韓文輸入時也能像⌥8 → •這樣輸入。";
 /* SettingsWindow.swift:147 Special characters tab: hint under the Option block checkbox: ⌥ with a letter types the plain letter. */
-"⌥+문자를 일반 문자로 입력합니다." = "將⌥+字元輸入為一般字元。";
+"⌥+문자를 일반 문자로 입력합니다." = "將⌥+字母輸入為一般字母。";
 /* SettingsWindow.swift:179 About tab: button that opens the page for sponsoring the developer. */
 "후원" = "贊助";
 /* SettingsWindow.swift:224 About tab: update status when the downloaded update cannot restart gksdud because a settings change is still being applied. */
@@ -99,7 +99,7 @@
 /* SpecialCharacters.swift:178 Special characters tab: status when gksdud could not switch back to Korean input after an Option character and dropped the waiting input. Say Korean input explicitly: this option works only there. */
 "한글로 돌아오지 못해 대기 중인 입력을 취소했습니다. 입력 소스를 확인해주세요." = "無法切換回韓文輸入，已取消等待中的輸入。請檢查輸入方式。";
 /* SpecialCharacters.swift:213 Special characters tab: status when the focused window changed during an Option character round trip, so gksdud dropped the waiting input. */
-"입력 창이 바뀌어 대기 중인 특수문자 입력을 취소했습니다." = "輸入視窗已變更，已取消等待中的特殊字元輸入。";
+"입력 창이 바뀌어 대기 중인 특수문자 입력을 취소했습니다." = "使用中的視窗已變更，已取消等待中的特殊字元輸入。";
 
 /* StatusMenu.swift:41 Status menu: item shown while a newer version is available; it opens the About tab. */
 "업데이트 가능" = "有可用的更新";
@@ -279,4 +279,4 @@
 /* main.swift:893 Settings window: status line at the bottom, above the tab buttons, while gksdud is on but none of the keyboards it remaps is connected. */
 "적용할 키보드 연결 대기 중" = "正在等待連接要套用的鍵盤";
 /* main.swift:894 Settings window: status line at the bottom, above the tab buttons, when macOS waits for the user to allow the login item. Use Apple's names for System Settings and Login Items. */
-"시스템 설정 → 로그인 항목에서 gksdud를 허용하세요." = "請在「系統設定 → 登入項目」中允許gksdud。";
+"시스템 설정 → 로그인 항목에서 gksdud를 허용하세요." = "請在「系統設定」>「登入項目」中允許gksdud。";
