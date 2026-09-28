@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
-sources=(main.swift SystemAccess.swift DudIcon.swift KeyboardManagement.swift KeyboardSettings.swift SettingsWindow.swift SpecialCharacters.swift UpdateChecking.swift UpdateInstaller.swift FeatureTests.swift KeyboardTests.swift)
+sources=(main.swift SystemAccess.swift AppLanguage.swift DudIcon.swift KeyboardManagement.swift KeyboardSettings.swift SettingsWindow.swift SpecialCharacters.swift UpdateChecking.swift UpdateInstaller.swift FeatureTests.swift KeyboardTests.swift LocalizationTests.swift)
+strict=""; if [[ "${GKSDUD_L10N_STRICT:-0}" == 1 ]]; then strict=--strict; fi
+shopt -s nullglob
 mode=${GKSDUD_SIGN_MODE:-local}
 sign_args=()
 case "$mode" in
@@ -34,6 +36,7 @@ lipo -create "$stage/gksdud-arm64" "$stage/gksdud-x86_64" -output "$stage/gksdud
 cp Info.plist "$stage/gksdud.app/Contents/Info.plist"
 cp LICENSE "$stage/gksdud.app/Contents/Resources/LICENSE"
 cp Resources/github.svg Resources/OCTICONS-LICENSE "$stage/gksdud.app/Contents/Resources/"
+for lproj in Resources/*.lproj; do cp -R "$lproj" "$stage/gksdud.app/Contents/Resources/"; done
 if [[ -n "${GKSDUD_APP_VERSION:-}" ]]; then
   [[ "$GKSDUD_APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $GKSDUD_APP_VERSION" "$stage/gksdud.app/Contents/Info.plist"
@@ -44,7 +47,11 @@ if [[ -n "${GKSDUD_BUILD_NUMBER:-}" ]]; then
 fi
 codesign --force "${sign_args[@]}" --options runtime "$stage/gksdud.app"
 codesign --verify --deep --strict "$stage/gksdud.app"
-"$stage/gksdud.app/Contents/MacOS/gksdud" --self-test
+app="$stage/gksdud.app/Contents/MacOS/gksdud"
+"$app" --self-test -AppleLanguages '(ko)'
+# ko under an unsupported system language proves the Korean fallback for strings and Locale.
+"$app" --localization-test ko ${strict:+"$strict"} -AppleLanguages '(en-US)'
+for lproj in Resources/*.lproj; do language=$(basename "$lproj" .lproj); "$app" --localization-test "$language" ${strict:+"$strict"} -AppleLanguages "($language)"; done
 version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$stage/gksdud.app/Contents/Info.plist")
 ditto -c -k --keepParent --norsrc "$stage/gksdud.app" "$output_dir/gksdud-$version-macos-universal.zip"
 codesign -d -r- "$stage/gksdud.app"

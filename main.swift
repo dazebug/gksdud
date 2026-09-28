@@ -1060,14 +1060,23 @@ if CommandLine.arguments.dropFirst().first == "--install-update" {
     do { try renderKeyboardUI(to: CommandLine.arguments[index + 1]) } catch { fputs("UI rendering failed: \(error)\n", stderr); exit(1) }
 } else if CommandLine.arguments.contains("--probe-option-input") {
     do { try probeOptionInput() } catch { fputs("Input probe failed: \(error)\n", stderr); exit(1) }
+} else if let index = CommandLine.arguments.firstIndex(of: "--localization-test") {
+    SystemAccess.lock()
+    setbuf(stdout, nil)
+    // Fail here instead of falling through to a normal, unlocked launch.
+    guard CommandLine.arguments.count > index + 1 else { fputs("Usage: gksdud --localization-test <language> [--strict]\n", stderr); exit(1) }
+    runLocalizationTest(expected: CommandLine.arguments[index + 1], strict: CommandLine.arguments.contains("--strict"))
 } else if CommandLine.arguments.contains("--self-test") {
     SystemAccess.lock()
+    // The self-test expects the Korean source text.
+    guard AppLanguage.current == "ko" else { fputs("Run --self-test with -AppleLanguages '(ko)' (resolved \(AppLanguage.current)).\n", stderr); exit(1) }
     setbuf(stdout, nil)
     do { try runSettingsReentrancyTests() } catch { fputs("Settings reentrancy tests failed: \(error)\n", stderr); exit(1) }
     do { try runShortcutRestoreTests() } catch { fputs("Shortcut tests failed: \(error)\n", stderr); exit(1) }
     runFeatureTests()
     runKeyboardTests()
     runRightControlTests()
+    runLocalizationTests()
     for initial in [false, true] {
         for holdEnabled in [false, true] {
             var caps = EnglishCapsState()

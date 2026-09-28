@@ -4,3 +4,4 @@
 *.rb text eol=lf
 *.md text eol=lf
 *.plist text eol=lf
+*.strings text eol=lf

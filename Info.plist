@@ -4,6 +4,8 @@
 <key>CFBundleIdentifier</key><string>io.gksdud.inputswitch</string>
 <key>CFBundleName</key><string>gksdud</string>
 <key>CFBundleDisplayName</key><string>gksdud</string>
+<key>CFBundleDevelopmentRegion</key><string>ko</string>
+<key>CFBundleLocalizations</key><array><string>ko</string><string>ja</string><string>zh-Hant</string></array>
 <key>CFBundleExecutable</key><string>gksdud</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
