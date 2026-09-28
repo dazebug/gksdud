@@ -5,11 +5,6 @@ import Carbon
 // an explicitly enabled, bounded Option-character transaction; it is never persisted.
 enum SpecialCharacterMode: Int { case none, english, block }
 
-struct InputSourceIdentity: Equatable {
-    let id: String
-    let language: String
-}
-
 struct OptionKeyPolicy {
     static let printable: Set<Int64> = Set(0...50).subtracting([36, 48])
         .union([65, 67, 69, 75, 78, 81, 82, 83, 84, 85, 86, 87, 88, 89, 91, 92, 93, 94, 95])
