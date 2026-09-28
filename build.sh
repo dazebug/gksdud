@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
-sources=(main.swift SystemAccess.swift AppLanguage.swift InputLanguage.swift InputSources.swift DudIcon.swift KeyboardManagement.swift KeyboardSettings.swift SettingsWindow.swift SpecialCharacters.swift UpdateChecking.swift UpdateInstaller.swift Preview.swift FeatureTests.swift KeyboardTests.swift InputLanguageTests.swift LocalizationTests.swift)
+sources=(main.swift SystemAccess.swift AppLanguage.swift InputLanguage.swift InputSources.swift StatusMenu.swift DudIcon.swift KeyboardManagement.swift KeyboardSettings.swift SettingsWindow.swift SpecialCharacters.swift UpdateChecking.swift UpdateInstaller.swift Preview.swift FeatureTests.swift KeyboardTests.swift InputLanguageTests.swift LocalizationTests.swift)
 strict=""; if [[ "${GKSDUD_L10N_STRICT:-0}" == 1 ]]; then strict=--strict; fi
 shopt -s nullglob
 mode=${GKSDUD_SIGN_MODE:-local}

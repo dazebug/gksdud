@@ -169,4 +169,35 @@ func runInputWiringTests() {
         featureCheck(InputSources.installed(id: "io.gksdud.nonexistent-input-source") == nil, "an unknown ID must not be installed")
     } else { print("SKIP: installed input source lookups (ABC input source is unavailable)") }
     print("PASS: environment wiring: English detection, long-press failure names, trust and the event tap latch, fake selection, input method names, installed lookups")
+    runStatusMenuWiringTests()
+}
+
+// Part 2: the status menu, indicator and previews on PreviewFixture, which never creates a status item.
+func runStatusMenuWiringTests() {
+    _ = NSApplication.shared
+    NSApp.setActivationPolicy(.prohibited)
+    var fixtures: [PreviewFixture] = []
+    func fixture(_ language: String, _ state: PreviewState = PreviewState()) -> PreviewFixture {
+        do { let made = try PreviewFixture(uiLanguage: language, state: state); fixtures.append(made); return made }
+        catch { fputs("FAIL: preview fixture for \(language): \(error)\n", stderr); exit(1) }
+    }
+    func entry(_ menu: NSMenu, _ title: String) -> NSMenuItem? { menu.items.first { $0.title == title } }
+
+    // A characterization of today's menu for the common Korean setup: one Korean and one English source.
+    let korean = fixture("ko"), menu = korean.delegate.statusMenu
+    let visible = menu.items.filter { !$0.isHidden && !$0.isSeparatorItem }.map(\.title)
+    featureCheck(visible == ["gksdud", "한국어", "영어", "활성화", "누를 때 전환", "로그인 시 시작", "메뉴바에 표시", "설정..", "종료"], "Korean status menu is \(visible)")
+    featureCheck(menu.items[1].action == #selector(AppDelegate.showAbout) && menu.items[1].isHidden, "the update entry must stay at index 1, hidden without an update")
+    let keys = menu.items.filter { !$0.keyEquivalent.isEmpty }.map { "\($0.title) \($0.keyEquivalent)" }
+    featureCheck(keys == ["설정.. ,", "종료 q"], "status menu key equivalents are \(keys)")
+    featureCheck(entry(menu, "한국어")?.state == .on && entry(menu, "영어")?.state == .off, "한국어 must be checked and 영어 not")
+    featureCheck(entry(menu, "한국어")?.image != nil && entry(menu, "영어")?.image != nil, "the input rows must show badges")
+    print("PASS: status menu Korean parity: titles, hidden update entry, key equivalents, checkmark and row badges")
+
+    for made in fixtures {
+        let problems = made.verifyUntouched()
+        featureCheck(problems.isEmpty, "the preview fixture reached the live system: \(problems)")
+        made.close()
+    }
+    print("PASS: preview fixture untouched: no event tap, no blocked or recorded system change, no undo keys, same Input menu and shortcut")
 }

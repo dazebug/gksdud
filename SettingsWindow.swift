@@ -237,7 +237,7 @@ extension AppDelegate {
         tabButtons.last?.image = release == nil ? tabGlyph("?") : updateGlyph(NSSize(width: 24, height: 20), color: .controlAccentColor)
         selectTab(selectedTab)
         tabButtons.last?.setAccessibilityLabel(release == nil ? "gksdud 탭" : "gksdud 탭, 업데이트 가능")
-        for entry in item?.menu?.items ?? [] where entry.action == #selector(showAbout) { entry.isHidden = release == nil }
+        for entry in statusMenu.items where entry.action == #selector(showAbout) { entry.isHidden = release == nil }
         let latest = release.map { " → v\($0.versionString)" } ?? ""
         updateHeading.stringValue = "v\(updates.installedVersion)\(latest)"
         updateSummary.string = release?.summary ?? ""
