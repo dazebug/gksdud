@@ -13,6 +13,23 @@ func runLocalizationTests() {
     print("PASS: UI language resolution, CLDR names, ko development region, ko/ja/zh-Hant bundle localizations, Korean Locale")
 }
 
+// Translated row labels can be wider than the Korean 95 pt column; the rows must then share the widest label's width.
+func runSettingsLayoutTests() {
+    _ = NSApplication.shared
+    NSApp.setActivationPolicy(.prohibited)
+    guard let fixture = try? PreviewFixture(uiLanguage: "ko") else { featureCheck(false, "the ko preview fixture must build"); return }
+    defer { fixture.close() }
+    let delegate = fixture.delegate, content = delegate.window.contentView!
+    // The label in front of each picker.
+    let labels = [delegate.picker, delegate.targetPicker, delegate.iconPicker].compactMap { ($0.superview as? NSStackView)?.arrangedSubviews.first as? NSTextField }
+    func widths() -> [CGFloat] { content.layoutSubtreeIfNeeded(); return labels.map { $0.alignmentRect(forFrame: $0.frame).width } }
+    featureCheck(labels.count == 3 && widths() == [95, 95, 95], "the Korean row labels must keep the 95 pt column, got \(widths())")
+    labels[2].stringValue = "Menu bar icon styles"
+    let shared = widths(), needed = labels[2].intrinsicContentSize.width
+    featureCheck(Set(shared).count == 1 && shared[0] >= 95 && shared[0] >= needed, "row labels are \(shared) wide; they must share one width of at least 95 pt that fits the \(needed) pt label")
+    print("PASS: settings row labels share one width that fits the longest label")
+}
+
 // A process resolves one bundle language, so build.sh runs this once per UI language.
 func runLocalizationTest(expected: String, strict: Bool) {
     var errors: [String] = []

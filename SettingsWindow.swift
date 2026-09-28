@@ -80,10 +80,14 @@ extension AppDelegate {
             NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: indent), label.trailingAnchor.constraint(equalTo: container.trailingAnchor), label.topAnchor.constraint(equalTo: container.topAnchor), label.bottomAnchor.constraint(equalTo: container.bottomAnchor)])
         }
         func separator(in panel: NSStackView) { let line = NSBox(); line.boxType = .separator; full(line, in: panel) }
+        var rowLabels: [NSTextField] = []
         func row(_ title: String, _ views: [NSView], in panel: NSStackView) {
-            let label = NSTextField(labelWithString: title); label.widthAnchor.constraint(equalToConstant: 95).isActive = true
+            let label = NSTextField(labelWithString: title); label.widthAnchor.constraint(greaterThanOrEqualToConstant: 95).isActive = true
             let row = NSStackView(views: [label] + views); row.spacing = 16; row.alignment = .centerY
             panel.addArrangedSubview(row)
+            // One column for all rows: 95 pt as in Korean, or the widest translated label. Labels need a common ancestor first.
+            if let first = rowLabels.first { label.widthAnchor.constraint(equalTo: first.widthAnchor).isActive = true }
+            rowLabels.append(label)
         }
         let general = tabPanels[0]
         enabled.target = self; enabled.action = #selector(toggleEnabled); enabled.state = engine.active ? .on : .off

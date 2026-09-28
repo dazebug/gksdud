@@ -948,6 +948,7 @@ if CommandLine.arguments.dropFirst().first == "--install-update" {
     runLocalizationTests()
     runInputLanguageTests()
     runInputWiringTests()
+    runSettingsLayoutTests()
     for initial in [false, true] {
         for holdEnabled in [false, true] {
             var caps = EnglishCapsState()
