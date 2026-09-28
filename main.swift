@@ -408,7 +408,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         engine.testInputText = field.stringValue
     }
     let iconPicker = NSPopUpButton()
-    let koreanPreview = NSImageView()
+    let languagePreview = NSImageView()
     let englishPreview = NSImageView()
     let enabled = NSButton(checkboxWithTitle: "활성화", target: nil, action: nil)
     let login = NSButton(checkboxWithTitle: "로그인 시 시작", target: nil, action: nil)
@@ -601,10 +601,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
     // Kotoeri's Romaji mode reports en as well, so Japanese users keep their case too.
     var currentIsEnglish: Bool { environment.inputSources.current().flatMap { InputLanguage.match($0.language) } == .english }
-    // A language name, never a raw tag, and no particle after it, so the sentence reads right for every source.
+    // A CLDR name, never a raw tag; a source without a language tag shows its own name.
+    func languageName(of source: InputSource) -> String {
+        InputLanguage.match(source.language)?.displayName ?? (InputMenu.fallbackCode(source.language) == "?" ? source.name : AppLanguage.name(of: source.language))
+    }
+    // No particle after the name, so the sentence reads right for every source.
     func longPressFailureMessage(for source: InputSource) -> String {
-        let name = InputLanguage.match(source.language)?.displayName ?? (InputMenu.fallbackCode(source.language) == "?" ? source.name : AppLanguage.name(of: source.language))
-        return String(localized: "영어 전환을 확인하지 못해 대문자 전환을 취소했습니다. 영어와 \(name) 입력 소스를 최근 입력 소스로 선택해주세요.", comment: "Caps tab: tooltip of the long-press checkbox after a hold could not confirm the switch to English. %@ is the name of the input language the hold started from, such as Japanese.")
+        String(localized: "영어 전환을 확인하지 못해 대문자 전환을 취소했습니다. 영어와 \(languageName(of: source)) 입력 소스를 최근 입력 소스로 선택해주세요.", comment: "Caps tab: tooltip of the long-press checkbox after a hold could not confirm the switch to English. %@ is the name of the input language the hold started from, such as Japanese.")
     }
     var actualCaps: Bool { CGEventSource.flagsState(.combinedSessionState).contains(.maskAlphaShift) }
     var capsPreservationActive: Bool { engine.active && engine.preserveCapsLock && environment.accessibilityTrusted() }
@@ -808,7 +811,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     @objc func menuEnabled() { enabled.state = engine.active ? .off : .on; toggleEnabled() }
     @objc func menuLogin() { login.state = environment.loginItemStatus() == .enabled ? .off : .on; toggleLogin() }
     @objc func menuHidden() { showInMenuBar.state = showInMenuBar.state == .on ? .off : .on; toggleHidden() }
-    @objc func showSettings() { if !window.isVisible { selectTab(0) }; window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
+    @objc func showSettings() { if !window.isVisible { selectTab(0) }; refreshIconPreviews(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { if showInMenuBar.state == .off { showSettings() }; return true }
     @objc func toggleHidden() {
         engine.defaults.set(showInMenuBar.state == .off, forKey: "hidden")

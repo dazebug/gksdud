@@ -44,7 +44,8 @@ func runLocalizationTest(expected: String, strict: Bool) {
 }
 
 // PostScript names of the fonts CoreText picks for text drawn in the system font, as AppKit controls draw UI text.
-func systemFontGlyphFonts(_ text: String) -> [String] {
-    let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)]))
-    return (CTLineGetGlyphRuns(line) as? [CTRun] ?? []).map { CTFontCopyPostScriptName((CTRunGetAttributes($0) as NSDictionary)[kCTFontAttributeName] as! CTFont) as String }
+func systemFontGlyphFonts(_ text: String) -> [String] { glyphRunFonts(NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)])) }
+// PostScript names of the fonts CoreText picks for each glyph run, in order, including fallbacks for glyphs the given font lacks.
+func glyphRunFonts(_ text: NSAttributedString) -> [String] {
+    (CTLineGetGlyphRuns(CTLineCreateWithAttributedString(text)) as? [CTRun] ?? []).map { CTFontCopyPostScriptName((CTRunGetAttributes($0) as NSDictionary)[kCTFontAttributeName] as! CTFont) as String }
 }

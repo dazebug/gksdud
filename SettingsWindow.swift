@@ -36,6 +36,7 @@ extension AppDelegate {
                 tabPanels.count == 3 ? panel.centerYAnchor.constraint(equalTo: host.centerYAnchor) : panel.topAnchor.constraint(equalTo: host.topAnchor)])
             tabPanels.append(panel)
         }
+        let primary = primaryLanguage()
         let tabs = NSStackView(); tabs.distribution = .fillEqually; tabs.spacing = 8
         tabs.translatesAutoresizingMaskIntoConstraints = false; content.addSubview(tabs)
         for (index, title) in ["일반", "대소문자", "특수문자", "gksdud"].enumerated() {
@@ -43,7 +44,7 @@ extension AppDelegate {
             button.tag = index; button.setButtonType(.toggle); button.bezelStyle = .regularSquare
             button.isBordered = false; button.imagePosition = .imageAbove; button.imageScaling = .scaleProportionallyDown
             button.font = .systemFont(ofSize: 10)
-            button.image = index == 0 ? sourceMenuIcon(korean: true) : tabGlyph(["", "Aa", "⌥", "?"][index])
+            button.image = index == 0 ? Self.badgeImage(iconStyle.badge(for: primary)) : tabGlyph(["", "Aa", "⌥", "?"][index])
             button.setAccessibilityLabel(title + " 탭")
             tabs.addArrangedSubview(button); tabButtons.append(button)
         }
@@ -116,16 +117,14 @@ extension AppDelegate {
         showInMenuBar.state = engine.defaults.bool(forKey: "hidden") ? .off : .on
         general.addArrangedSubview(login); general.addArrangedSubview(showInMenuBar)
         hint("기존 메뉴바 입력기를 대체합니다.\n⌘+드래그로 위치를 옮길 수 있어요.", in: general)
-        iconPicker.addItems(withTitles: ["한 / dud", "한 / A", "KO / EN", "ㅎuㅎ / dud"])
-        iconPicker.selectItem(at: iconStyle); iconPicker.target = self; iconPicker.action = #selector(changeIconStyle)
+        iconPicker.addItems(withTitles: IconStyle.allCases.map { $0.title(primary: primary) })
+        iconPicker.selectItem(at: iconStyle.rawValue); iconPicker.target = self; iconPicker.action = #selector(changeIconStyle)
         iconPicker.setAccessibilityLabel("메뉴바 아이콘 조합")
-        for preview in [koreanPreview, englishPreview] {
+        for preview in [languagePreview, englishPreview] {
             preview.widthAnchor.constraint(equalToConstant: 22).isActive = true
             preview.heightAnchor.constraint(equalToConstant: 20).isActive = true; preview.contentTintColor = .labelColor
         }
-        koreanPreview.setAccessibilityLabel("한국어 아이콘 미리보기")
-        englishPreview.setAccessibilityLabel("영어 아이콘 미리보기")
-        row("메뉴바 아이콘", [iconPicker, koreanPreview, englishPreview], in: general)
+        row("메뉴바 아이콘", [iconPicker, languagePreview, englishPreview], in: general)
         let caps = tabPanels[1]
         longPressSwitch.target = self; longPressSwitch.action = #selector(toggleLongPress)
         preserveCapsSwitch.target = self; preserveCapsSwitch.action = #selector(togglePreserveCaps)

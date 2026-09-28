@@ -26,7 +26,7 @@ func runInputLanguageTests() {
     print("PASS: input language registry and matching")
 
     func text(_ label: String, filled: Bool, _ language: String?) -> InputBadge { .text(label, filled: filled, language: language) }
-    // Today's iconLabel and sourceMenuIcon, which Korean users keep.
+    // The Korean and English badges from before the registry, which Korean users keep.
     let korean = [text("한", filled: true, "ko"), text("한", filled: true, "ko"), text("KO", filled: true, "ko"), .face(.hieut)]
     let english = [text("dud", filled: false, "en"), text("A", filled: false, "en"), text("EN", filled: false, "en"), .face(.d)]
     featureCheck(styles.map { $0.badge(for: .korean) } == korean, "Korean badges are \(styles.map { $0.badge(for: .korean) }), expected 한, 한, KO filled and the ㅎuㅎ face")
@@ -177,11 +177,32 @@ func runStatusMenuWiringTests() {
     _ = NSApplication.shared
     NSApp.setActivationPolicy(.prohibited)
     var fixtures: [PreviewFixture] = []
-    func fixture(_ language: String, _ state: PreviewState = PreviewState()) -> PreviewFixture {
-        do { let made = try PreviewFixture(uiLanguage: language, state: state); fixtures.append(made); return made }
+    func fixture(_ language: String, _ state: PreviewState = PreviewState(), resolveNames: Bool = false) -> PreviewFixture {
+        do { let made = try PreviewFixture(uiLanguage: language, state: state, resolveNames: resolveNames); fixtures.append(made); return made }
         catch { fputs("FAIL: preview fixture for \(language): \(error)\n", stderr); exit(1) }
     }
     func entry(_ menu: NSMenu, _ title: String) -> NSMenuItem? { menu.items.first { $0.title == title } }
+    func rows(_ fixture: PreviewFixture) -> [NSMenuItem] { fixture.delegate.statusMenu.items.filter { $0.action == #selector(AppDelegate.selectInputSource(_:)) } }
+    func titles(_ items: [NSMenuItem]) -> [String] { items.map { $0.state == .on ? $0.title + " ✓" : $0.title } }
+    // Drawn at 2x, where a mode glyph or a regional Han shape shows in the pixels.
+    func pixels(_ image: NSImage?) -> Data? {
+        guard let image, let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(image.size.width) * 2, pixelsHigh: Int(image.size.height) * 2, bitsPerSample: 8,
+            samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0), let data = bitmap.bitmapData else { return nil }
+        bitmap.size = image.size
+        NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+        image.draw(in: NSRect(origin: .zero, size: image.size)); NSGraphicsContext.restoreGraphicsState()
+        return Data(bytes: data, count: bitmap.bytesPerRow * bitmap.pixelsHigh)
+    }
+    func badge(_ label: String, filled: Bool, _ language: String?) -> Data? { pixels(AppDelegate.badgeImage(label: label, filled: filled, language: language)) }
+    // Font, glyph and position of every glyph; a tag may split a run without changing what is drawn.
+    func layout(_ text: NSAttributedString) -> [String] {
+        (CTLineGetGlyphRuns(CTLineCreateWithAttributedString(text)) as? [CTRun] ?? []).flatMap { run -> [String] in
+            let count = CTRunGetGlyphCount(run), font = CTFontCopyPostScriptName((CTRunGetAttributes(run) as NSDictionary)[kCTFontAttributeName] as! CTFont) as String
+            var glyphs = [CGGlyph](repeating: 0, count: count), positions = [CGPoint](repeating: .zero, count: count)
+            CTRunGetGlyphs(run, CFRange(), &glyphs); CTRunGetPositions(run, CFRange(), &positions)
+            return zip(glyphs, positions).map { "\(font) \($0) \($1.x)" }
+        }
+    }
 
     // A characterization of today's menu for the common Korean setup: one Korean and one English source.
     let korean = fixture("ko"), menu = korean.delegate.statusMenu
@@ -192,12 +213,108 @@ func runStatusMenuWiringTests() {
     featureCheck(keys == ["설정.. ,", "종료 q"], "status menu key equivalents are \(keys)")
     featureCheck(entry(menu, "한국어")?.state == .on && entry(menu, "영어")?.state == .off, "한국어 must be checked and 영어 not")
     featureCheck(entry(menu, "한국어")?.image != nil && entry(menu, "영어")?.image != nil, "the input rows must show badges")
+    featureCheck(pixels(entry(menu, "한국어")?.image) == badge("한", filled: true, "ko") && pixels(entry(menu, "영어")?.image) == badge("dud", filled: false, "en"), "the rows must show today's 한 and dud badges")
     print("PASS: status menu Korean parity: titles, hidden update entry, key equivalents, checkmark and row badges")
 
+    // One row per source. A language with several sources lists them by the system's names; the check, badge and selection follow the source.
+    let japanese = fixture("ja"), (hiragana, katakana, abc) = (SampleSource.hiragana, SampleSource.katakana, SampleSource.abc)
+    featureCheck(titles(rows(japanese)) == ["Hiragana ✓", "Katakana", "영어"], "Japanese scene rows are \(titles(rows(japanese)))")
+    featureCheck(rows(japanese).map { $0.representedObject as? String } == [hiragana.id, katakana.id, abc.id], "each row must carry its source ID")
+    japanese.inputs.current = katakana
+    japanese.delegate.updateInputIndicator()
+    featureCheck(titles(rows(japanese)) == ["Hiragana", "Katakana ✓", "영어"], "the check must follow the current source: \(titles(rows(japanese)))")
+    featureCheck(japanese.delegate.inputBadge.accessibilityLabel() == "현재 입력: 일본어", "the indicator is labelled \(japanese.delegate.inputBadge.accessibilityLabel() ?? "nil")")
+    featureCheck(pixels(japanese.delegate.inputBadge.image) == badge("ア", filled: true, "ja") && badge("ア", filled: true, "ja") != badge("あ", filled: true, "ja"), "the indicator must show ア for Katakana")
+    japanese.inputs.current = hiragana
+    japanese.delegate.updateInputIndicator()
+    japanese.delegate.statusMenu.performActionForItem(at: japanese.delegate.statusMenu.index(of: rows(japanese)[1]))
+    featureCheck(japanese.inputs.selected == [katakana.id] && japanese.inputs.current == katakana && titles(rows(japanese)) == ["Hiragana", "Katakana ✓", "영어"],
+        "choosing the Katakana row must select exactly that source; selected \(japanese.inputs.selected)")
+    japanese.inputs.enabled = [hiragana, SampleSource.kanaHiragana, katakana, abc]
+    japanese.delegate.menuNeedsUpdate(japanese.delegate.statusMenu)
+    featureCheck(titles(rows(japanese)) == ["Hiragana (Japanese – Romaji)", "Hiragana (Japanese – Kana)", "Katakana ✓", "영어"], "Romaji and Kana Hiragana must add their input method: \(titles(rows(japanese)))")
+    let chinese = fixture("zh-Hant")
+    chinese.inputs.enabled += [SampleSource.cantonesePhonetic, SampleSource.simplifiedPinyin, SampleSource.ainu, SampleSource.konkani]
+    chinese.delegate.menuNeedsUpdate(chinese.delegate.statusMenu)
+    let chineseRows = rows(chinese)
+    featureCheck(titles(chineseRows) == ["Zhuyin – Traditional ✓", "Cangjie – Traditional", "광둥어(번체)", "아이누어", "중국어(간체)", AppLanguage.name(of: "kok"), "영어"], "Chinese rows are \(titles(chineseRows))")
+    let chineseBadges = [badge("注", filled: true, "zh-Hant"), badge("倉", filled: true, "zh-Hant"), badge("粵", filled: true, "yue-Hant"), badge("AIN", filled: false, nil),
+        badge("ZH", filled: false, nil), badge("KOK", filled: false, nil), badge("dud", filled: false, "en")]
+    featureCheck(chineseRows.map { pixels($0.image) } == chineseBadges && Set(chineseBadges.map { $0 ?? Data() }).count == chineseBadges.count, "rows must show their sources' method glyphs and outlined codes")
+    print("PASS: input rows for Japanese, Traditional Chinese, Cantonese and unregistered sources: names, checkmarks, badges, indicator and selection")
+
+    // The previews and icon style titles put the primary input language next to English. Only the glyph before " / " carries its CoreText language.
+    let koreanPicker = korean.delegate.iconPicker
+    featureCheck(koreanPicker.itemTitles == ["한 / dud", "한 / A", "KO / EN", "ㅎuㅎ / dud"], "Korean icon style titles are \(koreanPicker.itemTitles)")
+    featureCheck(koreanPicker.itemArray.allSatisfy { layout($0.attributedTitle ?? NSAttributedString()) == layout(NSAttributedString(string: $0.title, attributes: [.font: koreanPicker.font!])) },
+        "the ko tag must not change how the Korean icon style titles are drawn")
+    featureCheck(korean.delegate.languagePreview.accessibilityLabel() == "한국어 아이콘 미리보기" && korean.delegate.englishPreview.accessibilityLabel() == "영어 아이콘 미리보기", "Korean preview labels must not change")
+    // A saved style other than the first shows that the titles change in place instead of being added again.
+    let mixed = fixture("ko"), picker = mixed.delegate.iconPicker
+    picker.selectItem(at: IconStyle.character.rawValue); _ = picker.sendAction(picker.action, to: picker.target)
+    mixed.inputs.enabled = [abc, SampleSource.zhuyin]; mixed.inputs.current = abc
+    mixed.delegate.refreshIconPreviews()
+    featureCheck(picker.itemTitles == ["中 / dud", "中 / A", "ZH / EN", "中 / dud 캐릭터"] && picker.indexOfSelectedItem == IconStyle.character.rawValue, "icon style titles are \(picker.itemTitles), selected \(picker.indexOfSelectedItem)")
+    featureCheck(mixed.delegate.languagePreview.accessibilityLabel() == "중국어(번체) 아이콘 미리보기" && mixed.delegate.englishPreview.accessibilityLabel() == "영어 아이콘 미리보기",
+        "preview labels are \(mixed.delegate.languagePreview.accessibilityLabel() ?? "nil") and \(mixed.delegate.englishPreview.accessibilityLabel() ?? "nil")")
+    featureCheck(pixels(mixed.delegate.languagePreview.image) == badge("中", filled: true, "zh-Hant") && pixels(mixed.delegate.englishPreview.image) == pixels(DudIcon.badge(korean: false)),
+        "the character style previews must show 中, which has no face, and the dud face")
+    for index in 0..<picker.numberOfItems {
+        guard let title = picker.item(at: index)?.attributedTitle else { featureCheck(false, "icon style item \(index) has no attributed title"); continue }
+        var tagged: [NSRange] = []
+        title.enumerateAttribute(.coreTextLanguage, in: NSRange(location: 0, length: title.length)) { value, range, _ in if value != nil { tagged.append(range) } }
+        let glyph = (title.string as NSString).range(of: " / ").location, language = title.attribute(.coreTextLanguage, at: 0, effectiveRange: nil) as? String
+        featureCheck(tagged == [NSRange(location: 0, length: glyph)] && language == "zh-Hant" && title.attribute(.font, at: 0, effectiveRange: nil) as? NSFont == picker.font,
+            "icon style item \(title.string) must tag only its glyph with zh-Hant in the picker font, tagged \(tagged)")
+    }
+    let characterTitle = glyphRunFonts(picker.item(at: IconStyle.character.rawValue)?.attributedTitle ?? NSAttributedString())
+    featureCheck(characterTitle.first?.contains("PingFangUITextTC") == true && characterTitle.last?.contains("AppleSDGothicNeo") == true, "中 / dud 캐릭터 must draw 中 in PingFang TC and the UI text in the UI font: \(characterTitle)")
+    print("PASS: previews and icon style titles follow the input language: titles in place, labels, badges, glyph-only CoreText language")
+
+    // Rows are rebuilt on open, so they follow the icon style without patching items; the indicator and previews change at once.
+    let styles = korean.delegate.iconPicker
+    styles.selectItem(at: IconStyle.code.rawValue)
+    featureCheck(styles.sendAction(styles.action, to: styles.target) && korean.defaults.integer(forKey: "iconStyle") == IconStyle.code.rawValue, "choosing the code style must save it")
+    korean.delegate.menuNeedsUpdate(korean.delegate.statusMenu)
+    let (ko, en) = (badge("KO", filled: true, "ko"), badge("EN", filled: false, "en"))
+    featureCheck(rows(korean).map { pixels($0.image) } == [ko, en] && pixels(korean.delegate.inputBadge.image) == ko && pixels(korean.delegate.tabButtons.first?.image) == ko,
+        "the code style must show KO and EN in the rows and KO in the indicator")
+    featureCheck(pixels(korean.delegate.languagePreview.image) == ko && pixels(korean.delegate.englishPreview.image) == en, "the code style previews must show KO and EN")
+
+    // Korean users keep today's pixels: the ko and en tags draw exactly what untagged text drew.
+    for (label, filled, language) in [("한", true, "ko"), ("KO", true, "ko"), ("dud", false, "en"), ("A", false, "en"), ("EN", false, "en")] {
+        featureCheck(badge(label, filled: filled, language) == badge(label, filled: filled, nil), "the \(label) badge must draw the same pixels with the \(language) tag")
+    }
+    featureCheck(badge("中", filled: true, "zh-Hant") != badge("中", filled: true, "ja"), "a Han badge must take its input language's regional shape")
+    print("PASS: Korean badge pixels unchanged: 한, KO, dud, A and EN draw the same with their language tags, and 中 follows its tag")
+
+    // Every label a badge draws, laid out with the badge's own attributes, must come from its input language's Apple standard font whatever the UI language.
+    let standardFonts = ["ko": "AppleSDGothicNeo", "ja": "HiraKakuInterface", "zh-Hant": "PingFangUITextTC", "yue-Hant": "PingFangUITextHK", "en": nil]
+    for language in InputLanguage.all {
+        featureCheck(standardFonts.keys.contains(language.id), "\(language.id) needs a standard font row")
+        let modes = [nil] + language.modeGlyphs.keys.sorted().map { Optional($0) }
+        let labels = Set(modes.flatMap { mode in IconStyle.allCases.compactMap { style -> String? in
+            if case let .text(label, _, _) = style.badge(for: language, mode: mode) { return label }; return nil } })
+        for label in labels.sorted() {
+            let text = AppDelegate.badgeText(label, language: language.id), fonts = glyphRunFonts(text)
+            // Latin letters must stay in the badge's own font; everything else needs the language's standard font.
+            let own = (text.attribute(.font, at: 0, effectiveRange: nil) as? NSFont).map { CTFontCopyPostScriptName($0 as CTFont) as String }
+            let expected = label.unicodeScalars.allSatisfy(\.isASCII) ? own : standardFonts[language.id] ?? nil
+            featureCheck(expected != nil && !fonts.isEmpty && fonts.allSatisfy { $0.contains(expected!) }, "\(language.id) badge \(label) is drawn in \(fonts), expected \(expected ?? "a standard font")")
+        }
+    }
+    print("PASS: badge glyphs use their input language's Apple standard font: Apple SD Gothic Neo, Hiragino, PingFang TC and PingFang HK under a Korean UI")
+
+    // The walk and screenshots show the names the system gives the sources in the UI language, read without enabling anything.
+    let named = fixture("ja", resolveNames: true), installed = [hiragana, katakana].map { InputSources.installed(id: $0.id)?.name ?? $0.name }
+    featureCheck(titles(rows(named)) == [installed[0] + " ✓", installed[1], "영어"], "resolved Japanese rows are \(titles(rows(named))), expected the installed names \(installed)")
+    let attention = fixture("ko", PreviewState(trusted: false, updateAvailable: true, keyboardWarning: true, longPressFailure: true))
+    featureCheck(!attention.delegate.statusMenu.items[1].isHidden && !attention.delegate.keyboardWarningRow.isHidden && !attention.delegate.pressSwitch.isEnabled
+        && attention.delegate.longPressSwitch.toolTip == attention.delegate.longPressFailureMessage(for: SampleSource.twoSet), "the attention state must show the update, the keyboard warning, missing trust and the long-press failure")
     for made in fixtures {
         let problems = made.verifyUntouched()
         featureCheck(problems.isEmpty, "the preview fixture reached the live system: \(problems)")
         made.close()
     }
-    print("PASS: preview fixture untouched: no event tap, no blocked or recorded system change, no undo keys, same Input menu and shortcut")
+    print("PASS: preview fixture untouched: no event tap, no blocked or recorded system change, no undo keys, same Input menu and shortcut, in the default and attention states")
 }
