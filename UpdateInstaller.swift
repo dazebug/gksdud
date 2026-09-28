@@ -27,7 +27,7 @@ extension AppRelease {
               let url = URL(string: asset.browser_download_url), url.scheme == "https", url.host == "github.com",
               url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
               url.path == "/codingnoye/gksdud/releases/download/\(tag_name)/\(name)" else {
-            throw UpdateFailure("업데이트 파일을 찾지 못했습니다. 릴리스 페이지를 확인해주세요.")
+            throw UpdateFailure(String(localized: "업데이트 파일을 찾지 못했습니다. 릴리스 페이지를 확인해주세요.", comment: "About tab: update status when the release has no matching download file. The release page is on GitHub."))
         }
         return url
     }
@@ -56,7 +56,7 @@ enum UpdateProcessLauncher {
             if process.isRunning { return process }
         }
         try stop(process)
-        throw UpdateFailure("새 앱이 준비되지 않아 업데이트를 취소했습니다.")
+        throw UpdateFailure(String(localized: "새 앱이 준비되지 않아 업데이트를 취소했습니다.", comment: "Update error: the new app did not report that it started in time, so the update was cancelled."))
     }
     static func stop(_ process: Process) throws {
         if process.isRunning { process.terminate() }
@@ -66,7 +66,7 @@ enum UpdateProcessLauncher {
         deadline = ProcessInfo.processInfo.systemUptime + 2
         while process.isRunning, ProcessInfo.processInfo.systemUptime < deadline { pump() }
         guard !process.isRunning else {
-            throw UpdateProcessStillRunning(message: "새 앱을 종료하지 못했습니다. gksdud를 종료한 뒤 다시 시도해주세요.")
+            throw UpdateProcessStillRunning(message: String(localized: "새 앱을 종료하지 못했습니다. gksdud를 종료한 뒤 다시 시도해주세요.", comment: "Update error: the new app could not be stopped while undoing the update. Asks the user to quit gksdud and try again."))
         }
         process.waitUntilExit()
     }
@@ -82,7 +82,7 @@ enum UpdateValidation {
         var code: SecStaticCode?
         guard SecStaticCodeCreateWithPath(path as CFURL, SecCSFlags(rawValue: 0), &code) == errSecSuccess,
               let code, SecStaticCodeCheckValidity(code, strict, nil) == errSecSuccess else {
-            throw UpdateFailure("앱의 서명을 검증하지 못했습니다. 기존 앱은 그대로 유지됩니다.")
+            throw UpdateFailure(String(localized: "앱의 서명을 검증하지 못했습니다. 기존 앱은 그대로 유지됩니다.", comment: "Update error in the About tab or the update helper's alert: an app's code signature could not be verified, and the installed app stays as it is."))
         }
         return code
     }
@@ -92,25 +92,25 @@ enum UpdateValidation {
         guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
               let info = info as? [String: Any], let certificates = info[kSecCodeInfoCertificates as String] as? [SecCertificate],
               !certificates.isEmpty else {
-            throw UpdateFailure("개발용 ad-hoc 빌드는 자동 업데이트를 지원하지 않습니다. 정식 배포본을 설치해주세요.")
+            throw UpdateFailure(String(localized: "개발용 ad-hoc 빌드는 자동 업데이트를 지원하지 않습니다. 정식 배포본을 설치해주세요.", comment: "About tab: update status in a development build signed ad hoc, which cannot update itself. Asks the user to install an official release."))
         }
         var requirement: SecRequirement?
         guard SecCodeCopyDesignatedRequirement(code, SecCSFlags(rawValue: 0), &requirement) == errSecSuccess,
-              let requirement else { throw UpdateFailure("현재 앱의 서명 정보를 읽지 못했습니다.") }
+              let requirement else { throw UpdateFailure(String(localized: "현재 앱의 서명 정보를 읽지 못했습니다.", comment: "Update error in the About tab or the update helper's alert: the installed app's signing information could not be read.")) }
         return requirement
     }
     static func candidate(_ new: URL, installed: URL, version: String) throws {
         let requirement = try installedRequirement(installed)
         let code = try signedCode(new)
         guard SecStaticCodeCheckValidity(code, strict, requirement) == errSecSuccess else {
-            throw UpdateFailure("현재 앱과 업데이트의 서명이 다릅니다. 기존 앱은 그대로 유지됩니다.")
+            throw UpdateFailure(String(localized: "현재 앱과 업데이트의 서명이 다릅니다. 기존 앱은 그대로 유지됩니다.", comment: "Update error in the About tab or the update helper's alert: the downloaded update is signed differently from the installed app, which stays as it is."))
         }
         guard let bundle = Bundle(url: new), bundle.bundleIdentifier == identifier,
               bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String == version,
               let oldBundle = Bundle(url: installed), oldBundle.bundleIdentifier == identifier,
               let old = oldBundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
               let current = ReleaseVersion(old), let next = ReleaseVersion(version), next > current else {
-            throw UpdateFailure("업데이트의 앱 이름 또는 버전이 올바르지 않습니다.")
+            throw UpdateFailure(String(localized: "업데이트의 앱 이름 또는 버전이 올바르지 않습니다.", comment: "Update error in the About tab or the update helper's alert: the downloaded app has the wrong bundle identifier or version."))
         }
     }
     static func checksum(_ archive: URL, text: String, name: String) throws {
@@ -121,14 +121,14 @@ enum UpdateValidation {
             return String(fields[0]).lowercased()
         }
         guard matches.count == 1, matches[0].count == 64, matches[0].allSatisfy(\.isHexDigit) else {
-            throw UpdateFailure("업데이트 체크섬 정보가 올바르지 않습니다.")
+            throw UpdateFailure(String(localized: "업데이트 체크섬 정보가 올바르지 않습니다.", comment: "About tab: update status when the release's checksum file has no valid entry for the download."))
         }
         let handle = try FileHandle(forReadingFrom: archive)
         defer { try? handle.close() }
         var hash = SHA256()
         while let data = try handle.read(upToCount: 1_048_576), !data.isEmpty { hash.update(data: data) }
         let actual = hash.finalize().map { String(format: "%02x", $0) }.joined()
-        guard actual == matches[0] else { throw UpdateFailure("다운로드한 파일의 체크섬이 일치하지 않습니다. 다시 시도해주세요.") }
+        guard actual == matches[0] else { throw UpdateFailure(String(localized: "다운로드한 파일의 체크섬이 일치하지 않습니다. 다시 시도해주세요.", comment: "About tab: update status when the downloaded file does not match its published checksum.")) }
     }
     static func archiveNames(_ names: String, listing: String) throws {
         let entries = names.split(separator: "\n", omittingEmptySubsequences: true)
@@ -136,21 +136,21 @@ enum UpdateValidation {
               entries.allSatisfy({ name in
                   (name == "gksdud.app/" || name.hasPrefix("gksdud.app/")) && !name.contains("\\")
                       && !name.split(separator: "/").contains("..") && !name.contains("\r")
-              }) else { throw UpdateFailure("업데이트 압축 파일의 경로가 올바르지 않습니다.") }
+              }) else { throw UpdateFailure(String(localized: "업데이트 압축 파일의 경로가 올바르지 않습니다.", comment: "About tab: update status when the downloaded archive holds paths outside gksdud.app.")) }
         // This app's archives contain only regular files/directories. Reject links
         // before extraction, including a link that could redirect a later member.
         let modes = listing.split(separator: "\n").filter { $0.count >= 10 && $0.dropFirst().prefix(9).allSatisfy { "rwxstST-".contains($0) } }
         guard modes.count == entries.count, modes.allSatisfy({ $0.first == "-" || $0.first == "d" }) else {
-            throw UpdateFailure("지원하지 않는 링크가 압축 파일에 포함되어 있습니다.")
+            throw UpdateFailure(String(localized: "지원하지 않는 링크가 압축 파일에 포함되어 있습니다.", comment: "About tab: update status when the downloaded archive holds links, which gksdud does not accept."))
         }
         let total = try modes.reduce(Int64(0)) { sum, line -> Int64 in
             let fields = line.split(whereSeparator: \.isWhitespace)
             guard fields.count >= 4, let size = Int64(String(fields[3])), size >= 0, size <= 200_000_000 - sum else {
-                throw UpdateFailure("업데이트 압축 파일이 너무 큽니다.")
+                throw UpdateFailure(String(localized: "업데이트 압축 파일이 너무 큽니다.", comment: "About tab: update status when the downloaded archive would unpack beyond the size limit."))
             }
             return sum + size
         }
-        guard total > 0 else { throw UpdateFailure("업데이트 압축 파일이 비어 있습니다.") }
+        guard total > 0 else { throw UpdateFailure(String(localized: "업데이트 압축 파일이 비어 있습니다.", comment: "About tab: update status when the downloaded archive has no content.")) }
     }
     @discardableResult static func command(_ executable: String, _ arguments: [String]) throws -> String {
         let process = Process(), output = Pipe()
@@ -158,7 +158,7 @@ enum UpdateValidation {
         process.standardOutput = output; process.standardError = FileHandle.nullDevice
         try process.run()
         let data = output.fileHandleForReading.readDataToEndOfFile(); process.waitUntilExit()
-        guard process.terminationStatus == 0 else { throw UpdateFailure("업데이트 파일을 준비하지 못했습니다.") }
+        guard process.terminationStatus == 0 else { throw UpdateFailure(String(localized: "업데이트 파일을 준비하지 못했습니다.", comment: "About tab: update status when a system tool that lists or unpacks the downloaded archive failed.")) }
         return String(decoding: data, as: UTF8.self)
     }
 }
@@ -174,7 +174,7 @@ enum AppReplacement {
         let backup = parent.appendingPathComponent(".gksdud-rollback-\(token).app")
         let failed = parent.appendingPathComponent(".gksdud-failed-\(token).app")
         guard fm.isWritableFile(atPath: parent.path), fm.isWritableFile(atPath: installed.path) else {
-            throw UpdateFailure("앱 설치 폴더에 쓰기 권한이 없습니다. 쓰기 가능한 응용 프로그램 폴더에서 다시 시도해주세요.")
+            throw UpdateFailure(String(localized: "앱 설치 폴더에 쓰기 권한이 없습니다. 쓰기 가능한 응용 프로그램 폴더에서 다시 시도해주세요.", comment: "Update error in the About tab or the update helper's alert: gksdud cannot write to the folder it is installed in. Use Apple's name for the Applications folder."))
         }
         defer { try? fm.removeItem(at: stage) }
         try fm.copyItem(at: candidate, to: stage)
@@ -185,7 +185,7 @@ enum AppReplacement {
             try launch(installed)
         } catch {
             if error is UpdateProcessStillRunning {
-                throw UpdateProcessStillRunning(message: "새 앱을 종료하지 못해 복원을 중단했습니다. 기존 앱은 \(backup.path)에 보관되어 있습니다.")
+                throw UpdateProcessStillRunning(message: String(localized: "새 앱을 종료하지 못해 복원을 중단했습니다. 기존 앱은 \(backup.path)에 보관되어 있습니다.", comment: "Update helper alert: undoing the update stopped because the new app could not be quit. %@ is the path where the old app is kept."))
             }
             do {
                 if fm.fileExists(atPath: installed.path) { try fm.moveItem(at: installed, to: failed) }
@@ -193,9 +193,9 @@ enum AppReplacement {
                 try? launch(installed)
                 try? fm.removeItem(at: failed)
             } catch {
-                throw UpdateFailure("자동 복원이 완료되지 않았습니다. 기존 앱은 \(backup.path)에 보관되어 있습니다.")
+                throw UpdateFailure(String(localized: "자동 복원이 완료되지 않았습니다. 기존 앱은 \(backup.path)에 보관되어 있습니다.", comment: "Update helper alert: putting the old app back did not finish. %@ is the path where the old app is kept."))
             }
-            throw UpdateFailure("업데이트를 완료하지 못해 기존 앱으로 복원했습니다.")
+            throw UpdateFailure(String(localized: "업데이트를 완료하지 못해 기존 앱으로 복원했습니다.", comment: "Update helper alert: the update did not finish, so gksdud put the old app back."))
         }
         try? fm.removeItem(at: backup)
     }
@@ -217,11 +217,11 @@ final class UpdateInstaller: @unchecked Sendable {
             _ = try UpdateValidation.installedRequirement(installed)
             guard FileManager.default.isWritableFile(atPath: installed.deletingLastPathComponent().path),
                   FileManager.default.isWritableFile(atPath: installed.path) else {
-                throw UpdateFailure("앱 설치 폴더에 쓰기 권한이 없습니다. 쓰기 가능한 응용 프로그램 폴더에서 다시 시도해주세요.")
+                throw UpdateFailure(String(localized: "앱 설치 폴더에 쓰기 권한이 없습니다. 쓰기 가능한 응용 프로그램 폴더에서 다시 시도해주세요.", comment: "Update error in the About tab or the update helper's alert: gksdud cannot write to the folder it is installed in. Use Apple's name for the Applications folder."))
             }
         }
         catch { fail(error); return }
-        busy = true; status = "업데이트 다운로드 중…"; onChange?()
+        busy = true; status = String(localized: "업데이트 다운로드 중…", comment: "About tab: update status while the update downloads."); onChange?()
         Task.detached(priority: .utility) { [weak self] in
             var workspace: URL?
             do {
@@ -235,7 +235,7 @@ final class UpdateInstaller: @unchecked Sendable {
                 try await Self.download(archiveURL, to: archive, limit: 100_000_000)
                 let sums = directory.appendingPathComponent("SHA256SUMS")
                 try await Self.download(checksumURL, to: sums, limit: 100_000)
-                DispatchQueue.main.async { self?.status = "다운로드한 앱을 검증하는 중…"; self?.onChange?() }
+                DispatchQueue.main.async { self?.status = String(localized: "다운로드한 앱을 검증하는 중…", comment: "About tab: update status while gksdud checks the downloaded app's checksum and signature."); self?.onChange?() }
                 try UpdateValidation.checksum(archive, text: String(contentsOf: sums, encoding: .utf8), name: name)
                 let names = try UpdateValidation.command("/usr/bin/unzip", ["-Z1", archive.path])
                 let listing = try UpdateValidation.command("/usr/bin/unzip", ["-Z", "-l", archive.path])
@@ -247,7 +247,7 @@ final class UpdateInstaller: @unchecked Sendable {
                 try UpdateValidation.candidate(candidate, installed: installed, version: release.versionString)
                 let prepared = PreparedUpdate(directory: directory, candidate: candidate, version: release.versionString)
                 DispatchQueue.main.async {
-                    self?.status = "업데이트를 설치하고 다시 시작하는 중…"; self?.onChange?(); self?.onReady?(prepared)
+                    self?.status = String(localized: "업데이트를 설치하고 다시 시작하는 중…", comment: "About tab: update status while gksdud installs the update and restarts."); self?.onChange?(); self?.onReady?(prepared)
                 }
             } catch {
                 if let workspace { try? FileManager.default.removeItem(at: workspace) }
@@ -263,18 +263,18 @@ final class UpdateInstaller: @unchecked Sendable {
               http.url?.scheme == "https", let host = http.url?.host,
               ["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"].contains(host),
               let size = try FileManager.default.attributesOfItem(atPath: temporary.path)[.size] as? NSNumber,
-              size.int64Value > 0, size.int64Value <= limit else { throw UpdateFailure("업데이트 다운로드에 실패했습니다.") }
+              size.int64Value > 0, size.int64Value <= limit else { throw UpdateFailure(String(localized: "업데이트 다운로드에 실패했습니다.", comment: "About tab: update status when downloading a release file failed or returned an unexpected response.")) }
         try FileManager.default.moveItem(at: temporary, to: destination)
     }
     static func launchHelper(_ update: PreparedUpdate) throws {
-        guard let executable = Bundle.main.executableURL else { throw UpdateFailure("업데이트 도우미를 실행하지 못했습니다.") }
+        guard let executable = Bundle.main.executableURL else { throw UpdateFailure(String(localized: "업데이트 도우미를 실행하지 못했습니다.", comment: "About tab: update status when gksdud could not start its update helper process.")) }
         let helper = Process(); helper.executableURL = executable
         helper.arguments = ["--install-update", update.directory.path, update.candidate.path, update.version, String(getpid())]
         helper.standardOutput = FileHandle.nullDevice; helper.standardError = FileHandle.nullDevice
         try helper.run()
     }
     static func runHelper(_ arguments: [String]) throws {
-        guard arguments.count == 6, let parent = pid_t(arguments[5]), parent > 1 else { throw UpdateFailure("잘못된 업데이트 요청입니다.") }
+        guard arguments.count == 6, let parent = pid_t(arguments[5]), parent > 1 else { throw UpdateFailure(String(localized: "잘못된 업데이트 요청입니다.", comment: "Update helper error: the helper was started with invalid arguments.")) }
         let workspace = URL(fileURLWithPath: arguments[2]).standardizedFileURL
         let candidate = URL(fileURLWithPath: arguments[3]).standardizedFileURL
         let installed = Bundle.main.bundleURL.resolvingSymlinksInPath()
@@ -282,13 +282,13 @@ final class UpdateInstaller: @unchecked Sendable {
               workspace.path == workspace.resolvingSymlinksInPath().path,
               candidate.path == workspace.appendingPathComponent("expanded/gksdud.app").path,
               candidate.path == candidate.resolvingSymlinksInPath().path,
-              installed.pathExtension == "app" else { throw UpdateFailure("잘못된 업데이트 경로입니다.") }
+              installed.pathExtension == "app" else { throw UpdateFailure(String(localized: "잘못된 업데이트 경로입니다.", comment: "Update helper error: the paths it was given are not the expected download and app paths.")) }
         defer { try? FileManager.default.removeItem(at: workspace) }
         do {
             try UpdateValidation.candidate(candidate, installed: installed, version: arguments[4])
             let deadline = Date(timeIntervalSinceNow: 60)
             while kill(parent, 0) == 0, Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
-            guard kill(parent, 0) != 0 else { throw UpdateFailure("앱이 종료되지 않아 업데이트를 취소했습니다.") }
+            guard kill(parent, 0) != 0 else { throw UpdateFailure(String(localized: "앱이 종료되지 않아 업데이트를 취소했습니다.", comment: "Update helper alert: gksdud did not quit within a minute, so the update was cancelled.")) }
             try AppReplacement.replace(installed: installed, candidate: candidate, validate: { new, old in
                 try UpdateValidation.candidate(new, installed: old, version: arguments[4])
             }, launch: { try launchAndCheck($0) })
@@ -298,7 +298,7 @@ final class UpdateInstaller: @unchecked Sendable {
                FileManager.default.fileExists(atPath: installed.path) { try? launchAndCheck(installed) }
             // Show an actionable error after the main app has exited; never silently
             // leave the user without either the old app or its backup location.
-            let alert = NSAlert(); alert.messageText = "gksdud 업데이트"; alert.informativeText = error.localizedDescription
+            let alert = NSAlert(); alert.messageText = String(localized: "gksdud 업데이트", comment: "Update helper alert: title of the alert that reports a failed update."); alert.informativeText = error.localizedDescription
             alert.runModal()
             throw error
         }
