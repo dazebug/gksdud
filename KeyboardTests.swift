@@ -299,6 +299,20 @@ func runKeyboardTests() {
     let fallback = KeyboardIdentity(properties: [:]).key
     featureCheck(fallback == "4a38e0a533f920f053f8ea29fdf2161cd7e84009e4a223a562b4b5fb1a8ab1ec", "the fallback keyboard key is \(fallback)")
     print("PASS: saved keyboard keys keep the Korean fallback name in every UI language")
+    // A device without a product name is stored under the unnamed sentinel, so knownKeyboards is the same in every UI language; only rows and warnings translate it.
+    let namesSuite = "io.gksdud.keyboard-names.\(UUID().uuidString)"
+    let namesDefaults = UserDefaults(suiteName: namesSuite)!
+    defer { namesDefaults.removePersistentDomain(forName: namesSuite) }
+    let unnamed = TestKeyboard("unnamed", name: HIDKeyboardDevice.unnamed, serial: "unnamed"), named = TestKeyboard("named", name: "Magic Keyboard", serial: "named")
+    let names = KeyboardManager(defaults: namesDefaults, discover: { [unnamed, named] })
+    unnamed.failWrite = true
+    for _ in 0..<3 { names.reconcile(source: command, target: f19, active: true) }
+    let stored = (namesDefaults.data(forKey: "knownKeyboards").flatMap { try? JSONDecoder().decode([String: SavedKeyboard].self, from: $0) } ?? [:]).values.map(\.name).sorted()
+    featureCheck(HIDKeyboardDevice.unnamed == "이름 없는 키보드" && stored == ["Magic Keyboard", "이름 없는 키보드"], "knownKeyboards must store the unnamed sentinel, got \(stored)")
+    let shown = [unnamed, named].map { names.known[$0.identity.key]?.displayName ?? "nil" }
+    featureCheck(shown == ["이름 없는 키보드", "Magic Keyboard"], "keyboard rows show \(shown), expected the localized unnamed text and the named keyboard's own name")
+    featureCheck(names.warningDetails == "이름 없는 키보드: \(KeyboardError.write.localizedDescription)", "the keyboard warning details are \(names.warningDetails ?? "nil")")
+    print("PASS: unnamed keyboards keep their stored name and show the localized unnamed text in rows and warnings")
 }
 
 func runRightControlTests() {

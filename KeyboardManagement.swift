@@ -15,7 +15,7 @@ struct KeyboardIdentity {
     let detail: String
     // Registry IDs identify a connection, never a saved user preference.
     init(properties: [String: String]) {
-        let name = properties["Product"] ?? "키보드"
+        let name = properties["Product"] ?? "키보드" // l10n-ignore: hashed into saved keyboard keys
         let transport = properties["Transport"] ?? ""
         var parts = [properties["VendorID"] ?? "0", properties["ProductID"] ?? "0", transport]
         let serial = properties["SerialNumber"] ?? ""
@@ -23,23 +23,23 @@ struct KeyboardIdentity {
         let location = properties["LocationID"] ?? "0"
         if !serial.isEmpty && serial != "0" {
             parts += ["serial", serial]
-            detail = transport.isEmpty ? "키보드" : transport
+            detail = transport.isEmpty ? "키보드" : transport // l10n-ignore: persisted detail, never displayed
         } else if !unique.isEmpty && unique != "0" {
             parts += ["physical", unique]
-            detail = transport.isEmpty ? "키보드" : transport
+            detail = transport.isEmpty ? "키보드" : transport // l10n-ignore: persisted detail, never displayed
         } else if properties["Built-In"] == "1" {
             parts += ["built-in", name]
-            detail = "내장 키보드"
+            detail = "내장 키보드" // l10n-ignore: persisted detail, never displayed
         } else if location != "0" && !location.isEmpty {
             parts += ["location", location, name]
-            detail = "\(transport.isEmpty ? "키보드" : transport) · 포트 \(location)"
+            detail = "\(transport.isEmpty ? "키보드" : transport) · 포트 \(location)" // l10n-ignore: persisted detail, never displayed
         } else {
             // Some virtual/anonymous devices expose no persistent identifier.
             // Be explicit that indistinguishable services share one preference.
             let normalizedName = name.hasPrefix("Karabiner DriverKit VirtualHIDKeyboard")
                 ? "Karabiner DriverKit VirtualHIDKeyboard" : name
             parts += ["model", normalizedName]
-            detail = "같은 모델에 함께 적용"
+            detail = "같은 모델에 함께 적용" // l10n-ignore: persisted detail, never displayed
         }
         let data = try! JSONEncoder().encode(parts)
         key = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
@@ -51,6 +51,7 @@ struct SavedKeyboard: Codable, Equatable {
     var name: String
     var detail: String
     var mode: KeyboardMode
+    var displayName: String { HIDKeyboardDevice.displayName(name) }
 }
 
 protocol KeyboardDevice: AnyObject {
@@ -65,16 +66,21 @@ enum KeyboardError: Error, LocalizedError {
     case enumeration, read, write, verification, conflict
     var errorDescription: String? {
         switch self {
-        case .enumeration: return "키보드 목록을 확인하지 못했습니다."
-        case .read: return "키보드 매핑을 읽지 못했습니다."
-        case .write: return "키보드 매핑을 적용하지 못했습니다."
-        case .verification: return "키보드 매핑 적용을 확인하지 못했습니다."
-        case .conflict: return "전환 키가 다른 매핑에서 사용 중입니다."
+        case .enumeration: return String(localized: "키보드 목록을 확인하지 못했습니다.", comment: "Keyboard warning tooltip (General tab), after the name and a colon: the list of connected keyboards could not be read.")
+        case .read: return String(localized: "키보드 매핑을 읽지 못했습니다.", comment: "Keyboard warning tooltip (General tab), after a keyboard name and a colon: that keyboard's key mappings could not be read.")
+        case .write: return String(localized: "키보드 매핑을 적용하지 못했습니다.", comment: "Keyboard warning tooltip (General tab), after a keyboard name and a colon: gksdud could not apply its key mapping to that keyboard.")
+        case .verification: return String(localized: "키보드 매핑 적용을 확인하지 못했습니다.", comment: "Keyboard warning tooltip (General tab), after a keyboard name and a colon, and the update status in the About tab: reading the key mapping back did not confirm the change.")
+        case .conflict: return String(localized: "전환 키가 다른 매핑에서 사용 중입니다.", comment: "Keyboard warning tooltip (General tab), after a keyboard name and a colon: another key mapping on that keyboard already produces the internal switch key.")
         }
     }
 }
 
 final class HIDKeyboardDevice: KeyboardDevice {
+    // Saved in knownKeyboards for a device without a product name; only its display is translated, so saved data stays the same in every UI language.
+    static let unnamed = "이름 없는 키보드" // l10n-ignore: stored sentinel, translated by displayName
+    static func displayName(_ name: String) -> String {
+        name == unnamed ? String(localized: "이름 없는 키보드", comment: "Keyboard settings sheet and keyboard warning tooltip: name of a keyboard that reports no product name.") : name
+    }
     // A service must not outlive the client that created it.
     private let client: IOHIDEventSystemClient
     private let service: IOHIDServiceClient
@@ -90,7 +96,7 @@ final class HIDKeyboardDevice: KeyboardDevice {
                 properties[key] = (value as? String) ?? (value as? NSNumber)?.stringValue
             }
         }
-        name = properties["Product"] ?? "이름 없는 키보드"
+        name = properties["Product"] ?? Self.unnamed
         identity = KeyboardIdentity(properties: properties)
     }
     func readMappings() throws -> [Mapping] {
@@ -148,9 +154,9 @@ final class KeyboardManager {
         let persistent = failures.values.filter { $0.count >= 3 }
         guard !persistent.isEmpty else { return nil }
         if let listFailure = failures["enumeration"], listFailure.count >= 3 {
-            return "키보드 목록을 확인하지 못해 다시 시도하고 있습니다."
+            return String(localized: "키보드 목록을 확인하지 못해 다시 시도하고 있습니다.", comment: "General tab: orange warning under the enable checkbox, also added to the menu bar icon tooltip, while the list of keyboards keeps failing to load. gksdud retries on its own.")
         }
-        return "일부 키보드에 설정을 적용하지 못해 다시 시도하고 있습니다."
+        return String(localized: "일부 키보드에 설정을 적용하지 못해 다시 시도하고 있습니다.", comment: "General tab: orange warning under the enable checkbox, also added to the menu bar icon tooltip, while the key mapping keeps failing on some keyboards. gksdud retries on its own.")
     }
     var warningDetails: String? {
         let details = failures.values.filter { $0.count >= 3 }
@@ -244,7 +250,7 @@ final class KeyboardManager {
         var next = KeyboardReconcileResult()
         let devices: [KeyboardDevice]
         do { devices = try snapshot(); failures.removeValue(forKey: "enumeration") }
-        catch { failed("enumeration", name: "키보드 목록", error: error); next.pending = 1; result = next; return next }
+        catch { failed("enumeration", name: String(localized: "키보드 목록", comment: "Keyboard warning tooltip (General tab): stands in for a keyboard name, before the colon, when the list of keyboards itself could not be read."), error: error); next.pending = 1; result = next; return next }
         let present = Set(devices.map(\.registryID))
         failures = failures.filter { present.contains($0.key) }
         var failedIDs: Set<String> = []
@@ -257,7 +263,7 @@ final class KeyboardManager {
                 failures.removeValue(forKey: device.registryID)
             } catch {
                 failedIDs.insert(device.registryID)
-                failed(device.registryID, name: device.name, error: error)
+                failed(device.registryID, name: HIDKeyboardDevice.displayName(device.name), error: error)
             }
         }
         if !failedIDs.isEmpty {
