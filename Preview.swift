@@ -18,3 +18,18 @@ enum SampleSource {
     static let ainu = InputSource(id: "com.apple.inputmethod.AinuIM.Ainu", language: "ain", mode: "com.apple.AinuIM.Ainu", name: "Ainu", methodName: "Ainu")
     static let konkani = InputSource(id: "com.apple.keylayout.Konkani", language: "kok", name: "Konkani – InScript")
 }
+
+// Stands in for InputSources.system: select only records the ID and updates current; it never calls TIS.
+final class FakeInputSources {
+    var current: InputSource?
+    var enabled: [InputSource]
+    private(set) var selected: [String] = []
+    init(_ enabled: [InputSource], current: InputSource? = nil) { self.enabled = enabled; self.current = current ?? enabled.first }
+    var inputSources: InputSources {
+        InputSources(current: { self.current }, enabled: { self.enabled }, select: { id in
+            self.selected.append(id)
+            guard let source = self.enabled.first(where: { $0.id == id }) else { return false }
+            self.current = source; return true
+        })
+    }
+}

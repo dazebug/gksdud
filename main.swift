@@ -355,9 +355,26 @@ func nativeSwitchPulse(from event: CGEvent, marker: Int64) -> (CGEvent, CGEvent)
     return (down, up)
 }
 
+extension AppDelegate {
+    // Everything AppDelegate reads from or changes in the live system; tests and previews inject fakes.
+    struct Environment {
+        var inputSources: InputSources
+        var accessibilityTrusted: () -> Bool
+        var capsLock: (Bool) throws -> Void
+        var loginItemStatus: () -> SMAppService.Status
+        var setLoginItem: (Bool) throws -> Void
+        static let live = Environment(inputSources: .system, accessibilityTrusted: { AXIsProcessTrusted() }, capsLock: setCapsLock,
+            loginItemStatus: { SMAppService.mainApp.status }, setLoginItem: { enabled in
+                try SystemAccess.check("login item change")
+                if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            })
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate, NSTextFieldDelegate {
     let engine: Engine
-    init(engine: Engine = Engine()) { self.engine = engine; super.init() }
+    let environment: Environment
+    init(engine: Engine = Engine(), environment: Environment = .live) { self.engine = engine; self.environment = environment; super.init() }
     let installer = UpdateInstaller()
     var preparedToRelaunch = false
     lazy var optionInput = makeOptionInput()
@@ -439,7 +456,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         selectTab(0)
         showSettings()
         updatePressAccess()
-        guard !AXIsProcessTrusted() else { return }
+        guard !environment.accessibilityTrusted() else { return }
         permissionHighlightGeneration += 1
         let generation = permissionHighlightGeneration
         pressAccess.wantsLayer = true
@@ -459,7 +476,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
     }
     @objc func menuPressSwitch() {
-        guard AXIsProcessTrusted() else {
+        guard environment.accessibilityTrusted() else {
             // Open after menu tracking has finished; don't toggle the saved preference.
             DispatchQueue.main.async { [weak self] in self?.highlightPressAccess() }
             return
@@ -478,7 +495,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         keyTapSource = nil; keyTap = nil; pressGate.held.removeAll()
     }
     func ensureKeyTap() {
-        guard AXIsProcessTrusted() else { stopKeyTap(); updatePressAccess(); return }
+        guard environment.accessibilityTrusted() else { stopKeyTap(); updatePressAccess(); return }
         if let tap = keyTap, !CFMachPortIsValid(tap) { stopKeyTap() }
         syncCapsPreservation()
         if !engine.active || !engine.longPressCapsLock { cancelLongPress() }
@@ -499,7 +516,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                 if owner.optionInput.handle(event, mode: owner.specialMode, active: owner.engine.active) { return nil }
                 if type == .flagsChanged {
                     if owner.capsPreservationActive && event.getIntegerValueField(.keyboardEventKeycode) == 57 {
-                        owner.englishCaps.capsKeyChanged(english: owner.currentLanguage.hasPrefix("en"),
+                        owner.englishCaps.capsKeyChanged(english: owner.currentIsEnglish,
                             actual: event.flags.contains(.maskAlphaShift))
                     }
                     return Unmanaged.passUnretained(event)
@@ -550,7 +567,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         updatePressAccess()
     }
     func updatePressAccess() {
-        let trusted = AXIsProcessTrusted()
+        let trusted = environment.accessibilityTrusted()
         let ready = keyTap.map { CGEvent.tapIsEnabled(tap: $0) } ?? false
         pressAccess.title = trusted ? "권한 허용 완료" : "접근성 권한 허용"
         pressAccess.isEnabled = !trusted
@@ -583,11 +600,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         engine.defaults.set(preserveCapsSwitch.state == .on, forKey: "preserveCapsLock")
         ensureKeyTap()
     }
-    var currentLanguage: String {
-        TISCopyCurrentKeyboardInputSource().map { language($0.takeRetainedValue()) } ?? ""
+    // Kotoeri's Romaji mode reports en as well, so Japanese users keep their case too.
+    var currentIsEnglish: Bool { environment.inputSources.current().flatMap { InputLanguage.match($0.language) } == .english }
+    // A language name, never a raw tag, and no particle after it, so the sentence reads right for every source.
+    func longPressFailureMessage(for source: InputSource) -> String {
+        let name = InputLanguage.match(source.language)?.displayName ?? (InputMenu.fallbackCode(source.language) == "?" ? source.name : AppLanguage.name(of: source.language))
+        return String(localized: "영어 전환을 확인하지 못해 대문자 전환을 취소했습니다. 영어와 \(name) 입력 소스를 최근 입력 소스로 선택해주세요.", comment: "Caps tab: tooltip of the long-press checkbox after a hold could not confirm the switch to English. %@ is the name of the input language the hold started from, such as Japanese.")
     }
     var actualCaps: Bool { CGEventSource.flagsState(.combinedSessionState).contains(.maskAlphaShift) }
-    var capsPreservationActive: Bool { engine.active && engine.preserveCapsLock && AXIsProcessTrusted() }
+    var capsPreservationActive: Bool { engine.active && engine.preserveCapsLock && environment.accessibilityTrusted() }
     func syncCapsPreservation() {
         if capsPreservationActive { englishCaps.enable(actual: actualCaps) }
         else { cancelCapsRestore(); englishCaps.reset() }
@@ -599,16 +620,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
     func rememberCapsBeforeSwitch() {
         guard capsPreservationActive else { return }
-        englishCaps.willSwitch(english: currentLanguage.hasPrefix("en"), actual: actualCaps,
+        englishCaps.willSwitch(english: currentIsEnglish, actual: actualCaps,
             longPress: engine.longPressCapsLock)
         // Also settle if macOS does not change sources (for example, only one is enabled).
         scheduleCapsRestore()
     }
     func restoreEnglishCaps() {
         guard !optionInput.busy, capsPreservationActive, pendingCapsState == nil,
-              let desired = englishCaps.target(english: currentLanguage.hasPrefix("en")),
+              let desired = englishCaps.target(english: currentIsEnglish),
               actualCaps != desired else { return }
-        do { try setCapsLock(desired) }
+        do { try environment.capsLock(desired) }
         catch { preserveCapsSwitch.toolTip = error.localizedDescription }
     }
     func scheduleCapsRestore() {
@@ -667,20 +688,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         if pendingCapsState == nil { longPressOwner = nil }
     }
     func performLongPress() {
-        guard engine.active, engine.longPressCapsLock, AXIsProcessTrusted(),
+        guard engine.active, engine.longPressCapsLock, environment.accessibilityTrusted(),
               longPressOwner == NSWorkspace.shared.frontmostApplication?.processIdentifier,
-              let current = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
-              availableSource("en") != nil else { cancelLongPress(); return }
+              let current = environment.inputSources.current(),
+              environment.inputSources.enabled().contains(where: { InputLanguage.match($0.language) == .english }) else { cancelLongPress(); return }
         pendingCapsState = !longPressInitialCaps
-        if language(current).hasPrefix("en") { completeCapsTransition(); return }
+        if currentIsEnglish { completeCapsTransition(); return }
         // Keep composition on the native shortcut path; no text replay or direct TIS selection.
         guard let event = longPressEvent, let pulse = nativeSwitchPulse(from: event, marker: nativePulseMarker) else { cancelLongPress(); return }
         pulse.0.post(tap: .cghidEventTap); pulse.1.post(tap: .cghidEventTap)
-        let generation = longPressGeneration
+        let generation = longPressGeneration, failure = longPressFailureMessage(for: current)
         let timeout = DispatchWorkItem { [weak self] in
             guard let self, self.longPressGeneration == generation, self.pendingCapsState != nil else { return }
             self.cancelLongPress()
-            self.showLongPressError("영어 전환을 확인하지 못해 대문자 전환을 취소했습니다. 영어와 한국어를 최근 입력 소스로 선택해주세요.")
+            self.showLongPressError(failure)
         }
         capsConfirmationTimer = timeout
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: timeout)
@@ -689,11 +710,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         guard let desired = pendingCapsState else { return }
         guard engine.active, engine.longPressCapsLock,
               longPressOwner == NSWorkspace.shared.frontmostApplication?.processIdentifier else { cancelLongPress(); return }
-        guard let current = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(), language(current).hasPrefix("en") else { return }
+        guard currentIsEnglish else { return }
         pendingCapsState = nil
         capsConfirmationTimer?.cancel(); capsConfirmationTimer = nil
         do {
-            try setCapsLock(desired)
+            try environment.capsLock(desired)
             if capsPreservationActive { englishCaps.committedLongPress(desired) }
             scheduleCapsRestore()
         } catch { showLongPressError(error.localizedDescription) }
@@ -867,14 +888,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         image.isTemplate = true
         return image
     }
-    func language(_ source: TISInputSource) -> String {
-        guard let pointer = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages) else { return "" }
-        return (Unmanaged<CFArray>.fromOpaque(pointer).takeUnretainedValue() as? [String])?.first ?? ""
-    }
-    func availableSource(_ prefix: String) -> TISInputSource? {
-        let filter = [kTISPropertyInputSourceIsEnabled as String: true, kTISPropertyInputSourceIsSelectCapable as String: true, kTISPropertyInputSourceCategory as String: kTISCategoryKeyboardInputSource as String] as CFDictionary
-        let list = TISCreateInputSourceList(filter, false)?.takeRetainedValue() as? [TISInputSource] ?? []
-        return list.first { language($0).hasPrefix(prefix) }
+    func availableSource(_ language: InputLanguage) -> InputSource? {
+        environment.inputSources.enabled().first { InputLanguage.match($0.language) == language }
     }
     @objc func inputSourceChanged() {
         RunLoop.main.perform(inModes: [.common]) { [weak self] in
@@ -889,23 +904,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     func updateInputIndicator() {
         // The Option-character round trip selects English for a moment; didFinish refreshes afterwards.
         guard !optionInput.busy else { return }
-        guard let current = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
-        let lang = language(current)
-        updateInputMenuState(language: lang)
-        let label = lang.hasPrefix("ko") ? iconLabel(korean: true) : lang.hasPrefix("en") ? iconLabel(korean: false) : (lang.isEmpty ? "?" : String(lang.prefix(3)))
-        let korean = lang.hasPrefix("ko")
+        guard let current = environment.inputSources.current() else { return }
+        let lang = current.language, language = InputLanguage.match(lang)
+        updateInputMenuState(language: language)
+        let korean = language == .korean, english = language == .english
+        let label = korean ? iconLabel(korean: true) : english ? iconLabel(korean: false) : (lang.isEmpty ? "?" : String(lang.prefix(3)))
         // Let the status bar resolve contrast, including its initial appearance and highlighting.
-        let badge = (lang.hasPrefix("ko") || lang.hasPrefix("en"))
-            ? sourceMenuIcon(korean: korean) : badgeImage(label: label, filled: false)
+        let badge = korean || english ? sourceMenuIcon(korean: korean) : badgeImage(label: label, filled: false)
         inputBadge.image = badge
         tabButtons.first?.image = badge
-        inputBadge.setAccessibilityLabel("현재 입력: \(korean ? "한국어" : lang.hasPrefix("en") ? "영어" : label)")
+        inputBadge.setAccessibilityLabel("현재 입력: \(korean ? "한국어" : english ? "영어" : label)")
         guard let button = item?.button else { return }
         button.title = ""; button.image = badge
         button.imagePosition = .imageOnly
         let warning = engine.keyboards.warning.map { "\n\($0)" } ?? ""
         button.toolTip = "gksdud · 현재 입력 소스: \(lang)\(warning)"
-        button.setAccessibilityLabel("gksdud, 현재 입력 \(korean ? "한국어" : lang.hasPrefix("en") ? "영어" : label)\(warning)")
+        button.setAccessibilityLabel("gksdud, 현재 입력 \(korean ? "한국어" : english ? "영어" : label)\(warning)")
     }
     func menuWillOpen(_ menu: NSMenu) {
         updateInputIndicator()
@@ -917,18 +931,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
         menuInputTimer = refresh
         RunLoop.main.add(refresh, forMode: .eventTracking)
-        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        login.state = environment.loginItemStatus() == .enabled ? .on : .off
         for entry in menu.items {
             switch entry.action {
             case #selector(menuEnabled): entry.state = engine.active ? .on : .off
             case #selector(menuPressSwitch):
-                entry.state = AXIsProcessTrusted() && engine.switchOnKeyDown ? .on : .off
+                entry.state = environment.accessibilityTrusted() && engine.switchOnKeyDown ? .on : .off
                 entry.isEnabled = true
-                entry.toolTip = AXIsProcessTrusted() ? "키를 누르는 순간 전환합니다." : "설정을 열어 접근성 권한 허용 버튼을 표시합니다."
+                entry.toolTip = environment.accessibilityTrusted() ? "키를 누르는 순간 전환합니다." : "설정을 열어 접근성 권한 허용 버튼을 표시합니다."
             case #selector(menuLogin): entry.state = login.state
             case #selector(menuHidden): entry.state = showInMenuBar.state
-            case #selector(selectKorean): entry.isEnabled = availableSource("ko") != nil
-            case #selector(selectEnglish): entry.isEnabled = availableSource("en") != nil
+            case #selector(selectKorean): entry.isEnabled = availableSource(.korean) != nil
+            case #selector(selectEnglish): entry.isEnabled = availableSource(.english) != nil
             default: break
             }
         }
@@ -938,17 +952,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         menuInputTimer?.invalidate()
         menuInputTimer = nil
     }
-    func updateInputMenuState(language: String) {
+    func updateInputMenuState(language: InputLanguage?) {
         for entry in item?.menu?.items ?? [] {
-            if entry.action == #selector(selectKorean) { entry.state = language.hasPrefix("ko") ? .on : .off }
-            if entry.action == #selector(selectEnglish) { entry.state = language.hasPrefix("en") ? .on : .off }
+            if entry.action == #selector(selectKorean) { entry.state = language == .korean ? .on : .off }
+            if entry.action == #selector(selectEnglish) { entry.state = language == .english ? .on : .off }
         }
     }
-    func selectLanguage(_ prefix: String) { if let source = availableSource(prefix), SystemAccess.permits("input source selection") { rememberCapsBeforeSwitch(); _ = TISSelectInputSource(source) }; updateInputIndicator() }
-    @objc func selectKorean() { selectLanguage("ko") }
-    @objc func selectEnglish() { selectLanguage("en") }
+    func selectLanguage(_ language: InputLanguage) { if let source = availableSource(language) { rememberCapsBeforeSwitch(); _ = environment.inputSources.select(source.id) }; updateInputIndicator() }
+    @objc func selectKorean() { selectLanguage(.korean) }
+    @objc func selectEnglish() { selectLanguage(.english) }
     @objc func menuEnabled() { enabled.state = engine.active ? .off : .on; toggleEnabled() }
-    @objc func menuLogin() { login.state = SMAppService.mainApp.status == .enabled ? .off : .on; toggleLogin() }
+    @objc func menuLogin() { login.state = environment.loginItemStatus() == .enabled ? .off : .on; toggleLogin() }
     @objc func menuHidden() { showInMenuBar.state = showInMenuBar.state == .on ? .off : .on; toggleHidden() }
     @objc func showSettings() { if !window.isVisible { selectTab(0) }; window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { if showInMenuBar.state == .off { showSettings() }; return true }
@@ -959,10 +973,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
     @objc func toggleLogin() {
         do {
-            try SystemAccess.check("login item change")
-            if login.state == .on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            try environment.setLoginItem(login.state == .on)
             stickyError = ""; refreshStatus()
-        } catch { login.state = SMAppService.mainApp.status == .enabled ? .on : .off; report(error) }
+        } catch { login.state = environment.loginItemStatus() == .enabled ? .on : .off; report(error) }
     }
     func resetSelection() {
         picker.selectItem(at: sources.firstIndex(of: engine.source) ?? 0)
@@ -1022,7 +1035,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         status.stringValue = result.pending > 0 ? "키보드 설정을 다시 적용하고 있습니다."
             : !stickyError.isEmpty ? stickyError
             : engine.active && result.selected == 0 ? "적용할 키보드 연결 대기 중"
-            : window.isVisible && login.state == .on && SMAppService.mainApp.status == .requiresApproval ? "시스템 설정 → 로그인 항목에서 gksdud를 허용하세요." : ""
+            : window.isVisible && login.state == .on && environment.loginItemStatus() == .requiresApproval ? "시스템 설정 → 로그인 항목에서 gksdud를 허용하세요." : ""
     }
     var lastError = ""
     var stickyError = ""
@@ -1078,6 +1091,7 @@ if CommandLine.arguments.dropFirst().first == "--install-update" {
     runRightControlTests()
     runLocalizationTests()
     runInputLanguageTests()
+    runInputWiringTests()
     for initial in [false, true] {
         for holdEnabled in [false, true] {
             var caps = EnglishCapsState()

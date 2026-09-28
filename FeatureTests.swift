@@ -114,6 +114,13 @@ func runOptionInputTests() {
     featureCheck(!controller.handle(event(25, both), mode: .none, active: true))
     featureCheck(!controller.handle(event(25, both), mode: .english, active: false))
     current = english; featureCheck(!controller.handle(event(25, both), mode: .english, active: true))
+    // Japanese never starts a round trip, and Konkani's kok tag is not Korean.
+    for other in [InputSourceIdentity(id: "com.apple.inputmethod.Kotoeri.RomajiTyping.Japanese", language: "ja"), InputSourceIdentity(id: "com.apple.keylayout.Konkani", language: "kok")] {
+        current = other
+        featureCheck(!controller.handle(event(25, both), mode: .english, active: true) && !controller.busy && jobs.isEmpty && transitions.isEmpty && events.isEmpty,
+            "\(other.id) (\(other.language)) must not start an English round trip")
+    }
+    print("PASS: option characters stay Korean-only (Konkani, Japanese)")
     let letterKeys: [Int64] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 31, 32, 34, 35, 37, 38, 40, 45, 46]
     for source in [korean, english] {
         current = source
@@ -229,8 +236,8 @@ func runOptionInputTests() {
     front = 99; controller.cancel(focusChanged: true); drain()
     featureCheck(events.isEmpty && !controller.busy, "Never replay queued text into a different app")
     featureCheck(!warnings.isEmpty)
-    featureCheck(AppDelegate.sourceForID("io.gksdud.nonexistent-input-source") == nil, "Unavailable input sources must not crash")
-    if let abc = AppDelegate.sourceForID("com.apple.keylayout.ABC"), let identity = AppDelegate.sourceIdentity(abc) {
+    featureCheck(InputSources.source(id: "io.gksdud.nonexistent-input-source") == nil, "Unavailable input sources must not crash")
+    if let abc = InputSources.source(id: "com.apple.keylayout.ABC"), let identity = InputSources.read(abc)?.identity {
         let owner = AppDelegate(engine: Engine(defaults: UserDefaults(suiteName: "io.gksdud.layout-read-test")!, discover: { [] }))
         let translate = owner.makeOptionInput().environment.deadState
         for (accent, base): (Int64, Int64) in [(14, 0), (32, 32), (34, 0), (45, 45), (14, 83)] {
@@ -296,7 +303,10 @@ func probeOptionInput() throws {
         panel.orderOut(nil); previousApp?.activate(options: [])
         defaults.removePersistentDomain(forName: suite)
     }
-    guard let korean = delegate.availableSource("ko") else { throw NSError(domain: "probe", code: 2, userInfo: [NSLocalizedDescriptionKey: "Korean input source is unavailable."]) }
+    func enabledSource(_ language: InputLanguage) -> TISInputSource? {
+        delegate.environment.inputSources.enabled().first { InputLanguage.match($0.language) == language }.flatMap { InputSources.source(id: $0.id) }
+    }
+    guard let korean = enabledSource(.korean) else { throw NSError(domain: "probe", code: 2, userInfo: [NSLocalizedDescriptionKey: "Korean input source is unavailable."]) }
     func key(_ code: CGKeyCode, _ flags: CGEventFlags = []) {
         for down in [true, false] {
             let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)!
@@ -367,7 +377,7 @@ func probeOptionInput() throws {
         if ok { passed += 1 }
         print("PROBE \(ok ? "PASS" : "FAIL"): rapid backticks mode=\(mode), expected=\(expected), actual=\(text.string)")
     }
-    guard let english = delegate.availableSource("en") else { throw NSError(domain: "probe", code: 2, userInfo: [NSLocalizedDescriptionKey: "English input source is unavailable."]) }
+    guard let english = enabledSource(.english) else { throw NSError(domain: "probe", code: 2, userInfo: [NSLocalizedDescriptionKey: "English input source is unavailable."]) }
     let blockCases: [(CGKeyCode, CGEventFlags, Bool)] = [(0, [.maskAlternate], true), (0, [.maskAlternate, .maskShift], true),
         (14, [.maskAlternate], true), (19, [.maskAlternate], false), (50, [.maskAlternate], false), (42, [.maskAlternate], false)]
     for source in [korean, english] {
@@ -377,14 +387,14 @@ func probeOptionInput() throws {
                 controller.cancel(); mode = reference ? .none : .block
                 text.inputContext?.discardMarkedText(); text.string = ""
                 let selected = TISSelectInputSource(source); pump(0.2)
-                guard selected == noErr, environment.current() == AppDelegate.sourceIdentity(source),
+                guard selected == noErr, environment.current() == InputSources.read(source)?.identity,
                       panel.isKeyWindow, NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid() else {
                     throw NSError(domain: "probe", code: 5, userInfo: [NSLocalizedDescriptionKey: "Could not prepare the block-mode input context."])
                 }
                 key(code, reference && letter ? flags.subtracting(.maskAlternate) : flags)
                 pump(0.03); key(49); pump(0.1)
                 if reference { expected = text.string; continue }
-                let ok = !expected.isEmpty && text.string == expected && environment.current() == AppDelegate.sourceIdentity(source)
+                let ok = !expected.isEmpty && text.string == expected && environment.current() == InputSources.read(source)?.identity
                 if ok { passed += 1 }
                 print("PROBE \(ok ? "PASS" : "FAIL"): block key=\(code), source=\(environment.current()?.language ?? "nil"), expected=\(expected), actual=\(text.string)")
             }

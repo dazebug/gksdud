@@ -1,4 +1,5 @@
-import Foundation
+import AppKit
+import ServiceManagement
 
 // The pure input-language model: registry rows, tag matching, badges per icon style, picker titles and the input menu.
 func runInputLanguageTests() {
@@ -109,4 +110,63 @@ func runInputLanguageTests() {
     featureCheck(primary(abc, [abc], ui: "ko") == .korean && primary(nil, [], ui: "en") == .korean, "Korean must be the last fallback")
     featureCheck(primary(SampleSource.ainu, [SampleSource.ainu, twoSet]) == .korean, "an unregistered current source must fall back to the enabled registered language")
     print("PASS: input menu model: grouping, order, titles, checkmarks and primary language")
+}
+
+// AppDelegate on fake input sources and faked trust. Nothing here may reach the live input sources, Caps Lock, login item or event taps.
+func runInputWiringTests() {
+    let suiteName = "io.gksdud.wiring-test.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let refused = NSError(domain: "wiring-test", code: 1)
+    let fake = FakeInputSources([SampleSource.romaji, SampleSource.hiragana, SampleSource.katakana, SampleSource.abc])
+    var trusted = false, capsWrites: [Bool] = [], loginWrites: [Bool] = []
+    let environment = AppDelegate.Environment(inputSources: fake.inputSources, accessibilityTrusted: { trusted },
+        capsLock: { capsWrites.append($0); throw refused }, loginItemStatus: { .notRegistered }, setLoginItem: { loginWrites.append($0); throw refused })
+    let shortcuts = ShortcutPreferences(read: { [:] }, write: { _ in throw refused }, activate: { throw refused })
+    let delegate = AppDelegate(engine: Engine(defaults: defaults, discover: { [] }, shortcutPreferences: shortcuts), environment: environment)
+    featureCheck(delegate.currentIsEnglish, "Kotoeri's Romaji mode reports en, so it must count as English")
+    // Tags as TIS reports them; el and es start with e but are not English.
+    for other in [SampleSource.hiragana, InputSource(id: "com.apple.keylayout.Greek", language: "el"), InputSource(id: "com.apple.keylayout.Spanish", language: "es")] {
+        fake.current = other
+        featureCheck(!delegate.currentIsEnglish, "\(other.id) (\(other.language)) must not count as English")
+    }
+    fake.current = nil
+    featureCheck(!delegate.currentIsEnglish, "no current source must not count as English")
+    func failure(_ name: String) -> String { "영어 전환을 확인하지 못해 대문자 전환을 취소했습니다. 영어와 \(name) 입력 소스를 최근 입력 소스로 선택해주세요." }
+    let untagged = InputSource(id: "example.untagged", language: "", name: "Example")
+    for (source, name) in [(SampleSource.hiragana, "일본어"), (SampleSource.twoSet, "한국어"), (SampleSource.ainu, "아이누어"), (untagged, "Example")] {
+        let message = delegate.longPressFailureMessage(for: source)
+        featureCheck(message == failure(name), "long-press failure for \(source.id) is \"\(message)\", expected the name \(name)")
+    }
+    defaults.set(true, forKey: "active"); defaults.set(true, forKey: "switchOnKeyDown")
+    let denied = SystemAccess.denied.count
+    delegate.ensureKeyTap()
+    featureCheck(delegate.keyTap == nil && SystemAccess.denied.count == denied && !delegate.pressSwitch.isEnabled && !delegate.capsPreservationActive,
+        "without faked trust, ensureKeyTap must stop before the event tap")
+    trusted = true
+    delegate.ensureKeyTap()
+    featureCheck(delegate.keyTap == nil && SystemAccess.denied.count == denied + 1 && SystemAccess.denied.last == "event tap" && delegate.pressSwitch.isEnabled && delegate.capsPreservationActive,
+        "with trust faked true, the latch must refuse the event tap; denied \(SystemAccess.denied.suffix(2))")
+    featureCheck(capsWrites.isEmpty && loginWrites.isEmpty && fake.selected.isEmpty, "the wiring checks must not change Caps Lock, the login item or the input source")
+    let katakana = SampleSource.katakana
+    featureCheck(fake.inputSources.select(katakana.id) && fake.selected == [katakana.id] && fake.current == katakana, "FakeInputSources.select must record the ID and make its source current")
+    featureCheck(!fake.inputSources.select("example.missing") && fake.selected == [katakana.id, "example.missing"] && fake.current == katakana, "an unknown ID must be recorded, fail and keep the current source")
+    // Input method IDs as on this Mac, plus a shorter prefix that must lose to the longest one.
+    let methods = [InputSource(id: "com.apple.inputmethod", language: "", name: "Shorter prefix"), InputSource(id: "com.apple.inputmethod.Korean", language: "ko", name: "Korean"),
+        InputSource(id: "com.apple.inputmethod.Kotoeri.RomajiTyping", language: "ja", name: "Japanese – Romaji"), InputSource(id: "com.apple.inputmethod.Kotoeri.KanaTyping", language: "ja", name: "Japanese – Kana"),
+        InputSource(id: "com.apple.inputmethod.TCIM", language: "zh-Hant", name: "Chinese, Traditional"), InputSource(id: "com.apple.inputmethod.TYIM", language: "yue-Hant", name: "Cantonese, Traditional"),
+        InputSource(id: "com.apple.inputmethod.SCIM", language: "zh-Hans", name: "Chinese, Simplified"), InputSource(id: "com.apple.inputmethod.Ainu", language: "ain", name: "Ainu")]
+    for source in [SampleSource.abc, SampleSource.twoSet, SampleSource.hiragana, SampleSource.kanaHiragana, SampleSource.katakana, SampleSource.romaji, SampleSource.zhuyin,
+                   SampleSource.cangjie, SampleSource.cantonesePhonetic, SampleSource.simplifiedPinyin, SampleSource.ainu, SampleSource.konkani] {
+        let name = InputSources.methodName(of: source.id, among: methods)
+        featureCheck(name == source.methodName, "\(source.id) input method is \(name ?? "nil"), expected \(source.methodName ?? "nil")")
+    }
+    // Read-only lookups; installed(id:) also finds the modes of disabled input methods, which only previews may name.
+    if let abc = InputSources.source(id: SampleSource.abc.id).flatMap(InputSources.read) {
+        let installed = InputSources.installed(id: katakana.id)
+        featureCheck(InputSources.installed(id: abc.id) == abc && installed?.language == "ja" && installed?.mode == katakana.mode && installed?.name.isEmpty == false,
+            "installed(id:) must read ABC as source(id:) does and find Kotoeri Katakana, got \(String(describing: installed))")
+        featureCheck(InputSources.installed(id: "io.gksdud.nonexistent-input-source") == nil, "an unknown ID must not be installed")
+    } else { print("SKIP: installed input source lookups (ABC input source is unavailable)") }
+    print("PASS: environment wiring: English detection, long-press failure names, trust and the event tap latch, fake selection, input method names, installed lookups")
 }

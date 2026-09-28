@@ -96,7 +96,7 @@ final class OptionInputController {
             return false
         }
         guard event.type == .keyDown else { return false }
-        guard let current = environment.current(), current.language.hasPrefix("ko") else { clearDead(); return false }
+        guard let current = environment.current(), InputLanguage.match(current.language)?.optionCharactersViaEnglish == true else { clearDead(); return false }
         if OptionKeyPolicy.preservesKoreanSymbol(code: code, flags: event.flags) { clearDead(); return false }
         if !pendingDead.isEmpty, pendingOwner != environment.frontmost() || pendingOriginal != current
             || environment.clock() - pendingSince > 30 { clearDead() }
@@ -225,33 +225,17 @@ extension AppDelegate {
         for button in specialButtons { button.state = button.tag == specialMode.rawValue ? .on : .off }
         specialStatus.stringValue = ""
     }
-    static func sourceIdentity(_ source: TISInputSource) -> InputSourceIdentity? {
-        guard let id = TISGetInputSourceProperty(source, kTISPropertyInputSourceID),
-              let languages = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages) else { return nil }
-        return InputSourceIdentity(id: Unmanaged<CFString>.fromOpaque(id).takeUnretainedValue() as String,
-            language: (Unmanaged<CFArray>.fromOpaque(languages).takeUnretainedValue() as? [String])?.first ?? "")
-    }
-    static func sourceForID(_ id: String) -> TISInputSource? {
-        // macOS may return nil (not an empty array) when this source is unavailable.
-        let list = TISCreateInputSourceList([kTISPropertyInputSourceID as String: id] as CFDictionary, false)?.takeRetainedValue() as? [TISInputSource]
-        return list?.first
-    }
     func makeOptionInput() -> OptionInputController {
-        let controller = OptionInputController(environment: .init(current: {
-            TISCopyCurrentKeyboardInputSource().flatMap { Self.sourceIdentity($0.takeRetainedValue()) }
-        }, english: { [weak self] in
-            if let current = TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue(),
-               let identity = Self.sourceIdentity(current), identity.language.hasPrefix("en") { return identity }
-            return self?.availableSource("en").flatMap(Self.sourceIdentity)
-        }, select: { identity in
-            guard let source = Self.sourceForID(identity.id), SystemAccess.permits("input source selection") else { return false }
-            return TISSelectInputSource(source) == noErr
-        }, frontmost: { NSWorkspace.shared.frontmostApplication?.processIdentifier }, post: { event in
+        let inputSources = environment.inputSources
+        let controller = OptionInputController(environment: .init(current: { inputSources.current()?.identity }, english: {
+            if let layout = InputSources.asciiLayout(), InputLanguage.match(layout.language) == .english { return layout.identity }
+            return inputSources.enabled().first { InputLanguage.match($0.language) == .english }?.identity
+        }, select: { inputSources.select($0.id) }, frontmost: { NSWorkspace.shared.frontmostApplication?.processIdentifier }, post: { event in
             event.post(tap: .cghidEventTap)
         }, later: { delay, action in
             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: action)
         }, clock: { ProcessInfo.processInfo.systemUptime }, deadState: { identity, event, state in
-            guard let source = Self.sourceForID(identity.id), let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else { return nil }
+            guard let source = InputSources.source(id: identity.id), let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else { return nil }
             let data = Unmanaged<CFData>.fromOpaque(raw).takeUnretainedValue()
             let layout = UnsafeRawPointer(CFDataGetBytePtr(data)!).assumingMemoryBound(to: UCKeyboardLayout.self)
             var modifiers: UInt32 = 0

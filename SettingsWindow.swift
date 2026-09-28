@@ -111,7 +111,7 @@ extension AppDelegate {
         general.addArrangedSubview(keyboards)
         separator(in: general)
         login.target = self; login.action = #selector(toggleLogin)
-        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        login.state = environment.loginItemStatus() == .enabled ? .on : .off
         showInMenuBar.target = self; showInMenuBar.action = #selector(toggleHidden)
         showInMenuBar.state = engine.defaults.bool(forKey: "hidden") ? .off : .on
         general.addArrangedSubview(login); general.addArrangedSubview(showInMenuBar)
