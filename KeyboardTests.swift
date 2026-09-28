@@ -295,6 +295,10 @@ func runKeyboardTests() {
     precondition(afterBoot.records.isEmpty && afterBoot.known[conflicting.identity.key]?.mode == .off,
         "Reboot drops connection-specific undo records but preserves keyboard choices")
     print("PASS: keyboard discovery/replacement, default and overrides, persistent disconnected choices, partial failure isolation, warning recovery, verified undo, identity stability")
+    // Saved keyboard keys hash the fallback name 키보드 (parts 0, 0, "", model, 키보드), so no UI language may change it.
+    let fallback = KeyboardIdentity(properties: [:]).key
+    featureCheck(fallback == "4a38e0a533f920f053f8ea29fdf2161cd7e84009e4a223a562b4b5fb1a8ab1ec", "the fallback keyboard key is \(fallback)")
+    print("PASS: saved keyboard keys keep the Korean fallback name in every UI language")
 }
 
 func runRightControlTests() {
