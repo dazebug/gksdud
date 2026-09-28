@@ -29,9 +29,14 @@ mkdir -p "$stage/gksdud.app/Contents/MacOS" "$stage/gksdud.app/Contents/Resource
 swiftc -parse-as-library -D ICON_GENERATOR -module-cache-path "$stage/module-cache" DudIcon.swift -o "$stage/icon-generator"
 "$stage/icon-generator" "$stage/AppIcon.iconset"
 iconutil -c icns "$stage/AppIcon.iconset" -o "$stage/gksdud.app/Contents/Resources/AppIcon.icns"
+swiftc -parse-as-library -module-cache-path "$stage/module-cache" scripts/check-localization.swift -o "$stage/check-localization"
+"$stage/check-localization" --self-test
 for arch in arm64 x86_64; do
-  swiftc -swift-version 5 -O -target "$arch-apple-macos13.0" -module-cache-path "$stage/module-cache" -import-objc-header Bridge.h "${sources[@]}" -o "$stage/gksdud-$arch" -framework AppKit -framework IOKit -framework ServiceManagement
+  # Only the arm64 compile extracts String(localized:) keys; the guarded expansion survives set -u in bash 3.2.
+  extract=(); if [[ "$arch" == arm64 ]]; then extract=(-emit-localized-strings -emit-localized-strings-path "$stage/strings"); fi
+  swiftc -swift-version 5 -O -target "$arch-apple-macos13.0" -module-cache-path "$stage/module-cache" -import-objc-header Bridge.h ${extract[@]+"${extract[@]}"} "${sources[@]}" -o "$stage/gksdud-$arch" -framework AppKit -framework IOKit -framework ServiceManagement
 done
+"$stage/check-localization" ${strict:+"$strict"} --stringsdata "$stage/strings" --info-plist Info.plist --resources Resources --readme README.md "${sources[@]}"
 lipo -create "$stage/gksdud-arm64" "$stage/gksdud-x86_64" -output "$stage/gksdud.app/Contents/MacOS/gksdud"
 cp Info.plist "$stage/gksdud.app/Contents/Info.plist"
 cp LICENSE "$stage/gksdud.app/Contents/Resources/LICENSE"
@@ -52,6 +57,7 @@ app="$stage/gksdud.app/Contents/MacOS/gksdud"
 # ko under an unsupported system language proves the Korean fallback for strings and Locale.
 "$app" --localization-test ko ${strict:+"$strict"} -AppleLanguages '(en-US)'
 for lproj in Resources/*.lproj; do language=$(basename "$lproj" .lproj); "$app" --localization-test "$language" ${strict:+"$strict"} -AppleLanguages "($language)"; done
+echo "Localization data: $stage/strings"
 version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$stage/gksdud.app/Contents/Info.plist")
 ditto -c -k --keepParent --norsrc "$stage/gksdud.app" "$output_dir/gksdud-$version-macos-universal.zip"
 codesign -d -r- "$stage/gksdud.app"
