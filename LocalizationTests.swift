@@ -22,7 +22,8 @@ func runLocalizationTests() {
 
 // The parts of --capture-screenshots that need no screen or Screen Recording, so CI runs them: the offscreen badge strip, the menu's
 // capture rectangle with its backdrop, overlap and hover checks, the backdrop placement, blank-file detection, the settings window
-// check, the screencapture children's supervision, publishing and the capture state. runLaunchModeTests has its arguments.
+// check, the screencapture children's supervision, publishing, the capture state and the click shield. runLaunchModeTests has its
+// arguments.
 func runScreenshotTests() {
     let scratch = URL(fileURLWithPath: "/private/tmp/gksdud-self-test-\(UUID().uuidString)", isDirectory: true)
     try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
@@ -94,7 +95,8 @@ func runScreenshotTests() {
     let inactive = captureWindowProblem(active: false, key: true, size: built, built: built), notKey = captureWindowProblem(active: true, key: false, size: built, built: built)
     let grown = captureWindowProblem(active: true, key: true, size: NSSize(width: 384, height: 638), built: built)
     let fine = [built, NSSize(width: 385, height: 636.5)].map { captureWindowProblem(active: true, key: true, size: $0, built: built) }
-    featureCheck(inactive?.contains("not the active app") == true && notKey?.contains("not the key window") == true && grown?.contains("grew from its built 384.0×636.0 pt to 384.0×638.0 pt") == true && fine == [nil, nil],
+    featureCheck(inactive?.contains("not the active app") == true && notKey?.contains("not the key window") == true && notKey?.contains("when it asks, click its title bar once and nothing else") == true
+        && grown?.contains("grew from its built 384.0×636.0 pt to 384.0×638.0 pt") == true && fine == [nil, nil],
         "the settings captures must stop for an inactive app, a window that is not key or content grown more than 1 pt: \(inactive ?? "nil") / \(notKey ?? "nil") / \(grown ?? "nil") / \(fine)")
 
     // A screencapture child must not outlive the capture and take the screen once the backdrop is gone. Past its deadline it is
@@ -154,6 +156,31 @@ func runScreenshotTests() {
     featureCheck(boxes.map { $0.state == .on } == [true, true, true, true, false, true, false, false] && delegate.pressSwitch.isEnabled && delegate.iconPicker.indexOfSelectedItem == 0
         && fixture.defaults.object(forKey: "testInputText") == nil && delegate.testInput.stringValue == delegate.engine.testInputText && delegate.keyboardWarningRow.isHidden && delegate.statusMenu.items[1].isHidden,
         "the capture state shows \(boxes.map { "\($0.title): \($0.state == .on)" }), icon style \(delegate.iconPicker.indexOfSelectedItem), test text \(delegate.testInput.stringValue)")
+    // While the capture waits for the click that activates it, the settings window takes the mouse and a shield over its content
+    // takes the click, so no control on any tab gets it. Afterwards the window ignores the mouse again and clicks land as before.
+    let settings = delegate.window!, frameView = settings.contentView!.superview!
+    func label(_ control: NSControl) -> String { "\(type(of: control)) \"\((control as? NSButton)?.title ?? (control as? NSTextField)?.stringValue ?? control.accessibilityLabel() ?? "")\"" }
+    // What a click at the centre of each visible control on each tab reaches, hit-tested from the window's frame view, the top view
+    // that holds the title bar and the content view.
+    func hits() -> [(control: NSControl, hit: NSView?)] {
+        delegate.tabPanels.indices.flatMap { tab -> [(control: NSControl, hit: NSView?)] in
+            delegate.selectTab(tab); settings.contentView!.layoutSubtreeIfNeeded()
+            return descendants(settings.contentView!).compactMap { $0 as? NSControl }.filter { !$0.isHiddenOrHasHiddenAncestor && !$0.bounds.isEmpty }
+                .map { control in (control, frameView.hitTest(control.convert(NSPoint(x: control.bounds.midX, y: control.bounds.midY), to: nil))) }
+        }
+    }
+    settings.ignoresMouseEvents = true
+    let unshielded = hits(), shield = ClickShield.cover(settings), shielded = hits(), taking = !settings.ignoresMouseEvents
+    let offShield = shield.hitTest(NSPoint(x: shield.frame.maxX + 1, y: shield.frame.midY))
+    shield.uncover()
+    let restored = hits(); delegate.selectTab(0)
+    let named = boxes.map { $0 as NSControl } + delegate.tabButtons.map { $0 as NSControl } + [delegate.testInput, delegate.picker, delegate.targetPicker, delegate.iconPicker]
+    let unreached = named.filter { control in !unshielded.contains { $0.control === control && $0.hit?.isDescendant(of: control) == true } }
+    let through = shielded.filter { $0.hit !== shield }, changed = zip(unshielded, restored).filter { $0.hit !== $1.hit }
+    featureCheck(unreached.isEmpty && through.isEmpty && taking && offShield == nil && shield.superview == nil && settings.ignoresMouseEvents && changed.isEmpty && unshielded.count == restored.count,
+        "the click shield must take a click at every control on every tab while the window takes the mouse, then leave: unreached without it \(unreached.map(label)), past it \(through.map { label($0.control) }), "
+        + "window took the mouse \(taking), beside it \(offShield.map { "\(type(of: $0))" } ?? "nil"), removed \(shield.superview == nil), mouse ignored after \(settings.ignoresMouseEvents), hit differently after \(changed.map { label($0.0.control) })")
+    print("PASS: click shield: while the capture waits for its activating click, the settings window takes the mouse and the shield takes a click at every control on every tab; afterwards the window ignores the mouse and clicks reach the controls as before")
     let untouched = fixture.verifyUntouched()
     fixture.close()
     featureCheck(untouched.isEmpty, "the capture fixture reached the live system: \(untouched)")

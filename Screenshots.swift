@@ -4,7 +4,9 @@ import AppKit
 // and the badge strip is drawn offscreen. The user's own gksdud runs beside this with the same bundle ID, so the latch is locked,
 // nothing creates a status item or an event tap, the windows ignore the mouse, an inactive or grown settings window and a menu
 // that does not fit on its backdrop, has another app's window over it or the pointer on it stop the capture, and the fixture's
-// tripwires run afterwards. The directory gets the five files only when all of them and the tripwires pass.
+// tripwires run afterwards. The directory gets the five files only when all of them and the tripwires pass. When macOS refuses to
+// activate this app, the settings window asks for one click on its title bar and takes the mouse only until that click, with a
+// shield over its content that keeps the click off the controls.
 
 struct CaptureFailure: LocalizedError {
     let errorDescription: String?
@@ -39,11 +41,29 @@ func captureScreenshots(to directory: URL, appearance: NSAppearance.Name) throws
     defer { fixture.close() }
     let delegate = fixture.delegate, window = delegate.window!
     func settle(_ seconds: TimeInterval) { RunLoop.current.run(until: Date(timeIntervalSinceNow: seconds)) }
+    // Takes and sends the events itself, because running the run loop does not deliver the click that activates this app.
+    func pump(_ seconds: TimeInterval) {
+        let end = Date(timeIntervalSinceNow: seconds)
+        while Date() < end { if let event = NSApp.nextEvent(matching: .any, until: Date(timeIntervalSinceNow: 0.02), inMode: .default, dequeue: true) { NSApp.sendEvent(event) } }
+    }
 
     // A window capture includes the title bar; -o leaves out the shadow.
     window.ignoresMouseEvents = true; window.isRestorable = false; window.animationBehavior = .none
     window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
-    settle(0.3)
+    pump(0.3)
+    // macOS can refuse an activation that the user did not start, and an inactive app's window opens behind the active app's windows.
+    // The window then floats above them and waits up to 20 s, well inside the watchdog's 60 s, for one click; captureWindowProblem
+    // below still decides whether the capture goes on.
+    if !(NSApp.isActive && window.isKeyWindow) {
+        window.level = .floating; window.center(); window.orderFrontRegardless()
+        let shield = ClickShield.cover(window)
+        print("Click the title bar of the gksdud window once to start the capture, then do not click or type until it finishes. Waiting up to 20 s.")
+        let deadline = Date(timeIntervalSinceNow: 20)
+        while Date() < deadline && !(NSApp.isActive && window.isKeyWindow) { pump(0.05) }
+        // A second click right after the first, as in a double-click, still lands on this window and not on the one below it.
+        pump(0.3)
+        shield.uncover(); window.level = .normal
+    }
     for (tab, file) in zip(0..<3, files) {
         delegate.selectTab(tab); window.makeFirstResponder(nil); settle(0.3)
         if let problem = captureWindowProblem(active: NSApp.isActive, key: window.isKeyWindow, size: window.contentView!.frame.size, built: fixture.settingsSize) { throw CaptureFailure(problem) }
@@ -207,12 +227,26 @@ func menuCaptureRect(windowsAbove windows: [[String: Any]], process: pid_t, back
     return rect
 }
 
+// While the capture waits for the click that activates it, the settings window takes the mouse, and this view over its content
+// takes the click, so none of the fixture's controls gets it. uncover makes the window ignore the mouse again and removes the view.
+final class ClickShield: NSView {
+    static func cover(_ window: NSWindow) -> ClickShield {
+        let content = window.contentView!, shield = ClickShield(frame: content.bounds)
+        shield.autoresizingMask = [.width, .height]; content.addSubview(shield)
+        window.ignoresMouseEvents = false
+        return shield
+    }
+    func uncover() { window?.ignoresMouseEvents = true; removeFromSuperview() }
+    override func hitTest(_ point: NSPoint) -> NSView? { frame.contains(point) ? self : nil }
+    override func mouseDown(with event: NSEvent) {}
+}
+
 // Activation can be refused, and an inactive app or a window that is not key draws grey controls. Content that needs more room
 // grows the window past the size it was built with, which the README's 768 px images assume.
 func captureWindowProblem(active: Bool, key: Bool, size: NSSize, built: NSSize) -> String? {
     var problems: [String] = []
     if !active { problems.append("the capture is not the active app, so the settings window would show inactive controls; run it again without switching apps") }
-    if !key { problems.append("the settings window is not the key window, so its controls would show inactive; run the capture again without clicking") }
+    if !key { problems.append("the settings window is not the key window, so its controls would show inactive; run the capture again, and when it asks, click its title bar once and nothing else") }
     if size.width > built.width + 1 || size.height > built.height + 1 {
         problems.append("the settings window's content grew from its built \(built.width)×\(built.height) pt to \(size.width)×\(size.height) pt, so a label needs more room than the window has")
     }
