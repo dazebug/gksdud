@@ -117,7 +117,7 @@ func runInputLanguageTests() {
     print("PASS: input menu model: grouping, order, titles, checkmarks and primary language")
 }
 
-// AppDelegate on fake input sources and faked trust. Nothing here may reach the live input sources, Caps Lock, login item or event taps.
+// AppDelegate on fake input sources and faked trust. Nothing here may change the live input sources, Caps Lock, login item or event taps.
 func runInputWiringTests() {
     let scratch = ScratchDefaults("wiring-test"), defaults = scratch.defaults
     defer { scratch.close() }

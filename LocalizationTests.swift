@@ -390,7 +390,7 @@ func containsHangul(_ text: String) -> Bool {
     text.unicodeScalars.contains { scalar in [0x1100...0x11FF, 0x3130...0x318F, 0xA960...0xA97F, 0xAC00...0xD7A3, 0xD7B0...0xD7FF].contains { $0.contains(scalar.value) } }
 }
 
-// Apple's standard fonts for each language's CJK text, as CoreText resolves them; PostScript names start with these.
+// Apple's standard fonts for each language's CJK text, as CoreText resolves them; their PostScript names contain these names, as in .HiraKakuInterface-W4.
 let standardFonts = ["ko": "AppleSDGothicNeo", "ja": "HiraKakuInterface", "zh-Hant": "PingFangUITextTC", "yue-Hant": "PingFangUITextHK"]
 
 // Every label a badge draws, laid out with the badge's own attributes, must come from its input language's standard font
