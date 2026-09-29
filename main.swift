@@ -95,7 +95,7 @@ final class Engine {
     var longPressCapsLock: Bool { defaults.bool(forKey: "longPressCapsLock") }
     var preserveCapsLock: Bool { defaults.object(forKey: "preserveCapsLock") == nil || defaults.bool(forKey: "preserveCapsLock") }
     var testInputText: String {
-        get { defaults.string(forKey: "testInputText") ?? String(localized: "한dud한dud한dud한dud", comment: "General tab: default text of the switch test field, kept until the user edits it. It alternates a character typed in Korean with dud, a syllable typed in English mode, as the name gksdud is. Replace the Korean character with one of the UI language's own input, such as あ or 中, and keep dud.") }
+        get { defaults.string(forKey: "testInputText") ?? String(localized: "한dud한dud한dud한dud", comment: "Settings window, at the top on every tab: default text of the switch test field, kept until the user edits it. It alternates a character typed in Korean with dud, a syllable typed in English mode, as the name gksdud is. Replace the Korean character with one of the UI language's own input, such as あ or 中, and keep dud.") }
         set { defaults.set(newValue, forKey: "testInputText") }
     }
     var target: TargetKey { targets.first { $0.name == defaults.string(forKey: "target") } ?? targets[6] }
@@ -616,7 +616,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
     // No particle after the name, so the sentence reads right for every source.
     func longPressFailureMessage(for source: InputSource) -> String {
-        String(localized: "영어 전환을 확인하지 못해 대문자 전환을 취소했습니다. 영어와 \(languageName(of: source)) 입력 소스를 최근 입력 소스로 선택해주세요.", comment: "Caps tab: tooltip of the long-press checkbox after a hold could not confirm the switch to English. %@ is the name of the input language the hold started from, such as Japanese.")
+        String(localized: "영어 전환을 확인하지 못해 대문자 전환을 취소했습니다. 영어와 \(languageName(of: source)) 입력 소스를 최근 입력 소스로 선택해주세요.", comment: "Case tab: tooltip of the long-press checkbox after a hold could not confirm the switch to English. %@ is the name of the input language the hold started from, such as Japanese.")
     }
     var actualCaps: Bool { CGEventSource.flagsState(.combinedSessionState).contains(.maskAlphaShift) }
     var capsPreservationActive: Bool { engine.active && engine.preserveCapsLock && environment.accessibilityTrusted() }

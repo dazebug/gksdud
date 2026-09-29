@@ -39,9 +39,9 @@
 /* KeyboardSettings.swift:156 Keyboard settings sheet: accessibility label of a keyboard's Off/Default/On switch. %@ is the keyboard name. */
 "%@ 적용 설정" = "%@的套用設定";
 
-/* SettingsWindow.swift:24 General tab: placeholder of the empty switch test field. The Korean says try switching between Korean and English; translate it as trying the input source switch. */
+/* SettingsWindow.swift:24 Settings window, at the top on every tab: placeholder of the empty switch test field. The Korean says try switching between Korean and English; translate it as trying the input source switch. */
 "한영 전환을 테스트해보세요" = "嘗試切換輸入方式";
-/* SettingsWindow.swift:25 General tab: accessibility label of the text field for trying the input source switch. VoiceOver names the control type after the label, so leave it out. */
+/* SettingsWindow.swift:25 Settings window, at the top on every tab: accessibility label of the text field for trying the input source switch. VoiceOver names the control type after the label, so leave it out. */
 "한영 전환 테스트 입력창" = "輸入方式切換測試";
 /* SettingsWindow.swift:42 Settings window: title of the General tab button. */
 "일반" = "一般";
@@ -119,7 +119,7 @@
 "종료" = "結束";
 /* StatusMenu.swift:91 General tab: accessibility label of a menu bar icon preview next to the icon picker. %@ is an input language name, such as Japanese or English. */
 "%@ 아이콘 미리보기" = "%@圖像預覽";
-/* StatusMenu.swift:142 General tab: accessibility label of the input badge next to the test field. %@ is the current input language, such as Japanese. */
+/* StatusMenu.swift:145 Settings window, at the top on every tab: accessibility label of the input badge next to the test field. %@ is the current input language, such as Japanese. */
 "현재 입력: %@" = "目前輸入：%@";
 /* StatusMenu.swift:148 Menu bar icon tooltip. %@ is the language tag of the current input source, such as ko or ja. */
 "gksdud · 현재 입력 소스: %@" = "gksdud · 目前的輸入方式：%@";
@@ -204,7 +204,7 @@
 "입력 소스 단축키를 저장하지 못했습니다." = "無法儲存輸入方式快速鍵。";
 /* main.swift:75 Error alert: macOS did not apply the changed "Select the previous input source" shortcut. */
 "단축키 활성화에 실패했습니다. 다시 시도해주세요." = "無法啟用快速鍵。請再試一次。";
-/* main.swift:98 General tab: default text of the switch test field, kept until the user edits it. It alternates a character typed in Korean with dud, a syllable typed in English mode, as the name gksdud is. Replace the Korean character with one of the UI language's own input, such as あ or 中, and keep dud. */
+/* main.swift:98 Settings window, at the top on every tab: default text of the switch test field, kept until the user edits it. It alternates a character typed in Korean with dud, a syllable typed in English mode, as the name gksdud is. Replace the Korean character with one of the UI language's own input, such as あ or 中, and keep dud. */
 "한dud한dud한dud한dud" = "中dud中dud中dud中dud";
 /* main.swift:147 Error alert: the chosen internal switch key already triggers another system shortcut. %@ is a function key name such as F19. */
 "%@ 키는 다른 시스템 단축키에서 사용 중입니다. 다른 대상 키를 선택하세요." = "%@鍵已用於其他系統快速鍵。請選擇其他內部切換鍵。";
@@ -250,7 +250,7 @@
 "키를 누르는 순간 전환 · 길게 눌러도 한 번만 전환" = "按下按鍵的瞬間切換 · 按住也只切換一次";
 /* main.swift:593 General tab: tooltip of the switch-on-key-down checkbox while macOS has not yet applied the Accessibility access. */
 "권한 반영을 기다리는 중입니다. 계속 전환되지 않으면 앱을 다시 실행하세요." = "正在等待權限生效。如果仍無法切換，請重新啟動App。";
-/* main.swift:618 Caps tab: tooltip of the long-press checkbox after a hold could not confirm the switch to English. %@ is the name of the input language the hold started from, such as Japanese. */
+/* main.swift:619 Case tab: tooltip of the long-press checkbox after a hold could not confirm the switch to English. %@ is the name of the input language the hold started from, such as Japanese. */
 "영어 전환을 확인하지 못해 대문자 전환을 취소했습니다. 영어와 %@ 입력 소스를 최근 입력 소스로 선택해주세요." = "無法確認已切換至英文，已取消切換大寫。請選擇英文和%@輸入方式，使其成為最近使用的輸入方式。";
 /* main.swift:746 App menu: item that quits gksdud (⌘Q). */
 "gksdud 종료" = "結束gksdud";

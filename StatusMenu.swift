@@ -142,7 +142,7 @@ extension AppDelegate {
         let badge = Self.badgeImage(iconStyle.badge(for: current)), name = languageName(of: current)
         inputBadge.image = badge
         tabButtons.first?.image = badge
-        inputBadge.setAccessibilityLabel(String(localized: "현재 입력: \(name)", comment: "General tab: accessibility label of the input badge next to the test field. %@ is the current input language, such as Japanese."))
+        inputBadge.setAccessibilityLabel(String(localized: "현재 입력: \(name)", comment: "Settings window, at the top on every tab: accessibility label of the input badge next to the test field. %@ is the current input language, such as Japanese."))
         if window?.isVisible == true { refreshIconPreviews() }
         guard let button = item?.button else { return }
         button.title = ""; button.image = badge
