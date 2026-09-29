@@ -322,7 +322,8 @@ func check(_ project: Project) -> Report {
             let source = uses[entry.key]?[0].entry.text
             if source == nil { stale += 1; at("W2", "\(language): stale translation \"\(escaped(entry.key))\" is no longer used in code") }
             if hasHangul(entry.value) { at("W3", "\(language): the translation of \"\(escaped(entry.key))\" contains Korean text") }
-            if let mismatch = formatMismatch(source ?? entry.key, entry.value) { at("E6", "format specifiers differ for \"\(escaped(entry.key))\": \(mismatch)") }
+            // Nothing looks up a stale entry, so its format cannot break a user; W2 reports it without stopping the build.
+            if let source, let mismatch = formatMismatch(source, entry.value) { at("E6", "format specifiers differ for \"\(escaped(entry.key))\": \(mismatch)") }
         }
         counts.append("\(language) \(absent.count) missing \(stale) stale")
         missing.append((language, absent.count))
@@ -585,8 +586,15 @@ func selfTest() -> Bool {
         expect(formatMismatch("%@", "%@ %D") != nil && formatMismatch("%d", "%D") == nil && formatMismatch("%lu", "%lU") == nil && formatMismatch("%o", "%O") == nil, "Foundation reads %D, %U and %O like %d, %u and %o")
         expect(formatMismatch("%@", "%@ %n") != nil && formatMismatch("%@", "%@ %P") != nil, "%n and %P read an argument")
         expect(formatMismatch("%lld %@", "%'lld %@") != nil, "Foundation prints %' as text, so the %@ after it would read the number")
-        let report = check(fixture([Source(path: "Settings.swift", text: "", extracted: [Extracted(key: "%@ 탭", line: 4, column: 9, comment: "Tab label")])], tables: ["ja": "\"%@ 탭\" = \"%lld タブ\";\n"]))
-        expect(found(report.diagnostics) == ["E6 Resources/ja.lproj/Localizable.strings:1:1"], "\(found(report.diagnostics))")
+    }
+
+    section("E6 compares a translation with its key's use in code, literal % text included, and a stale entry gets W2 only") {
+        // Whether String(localized:) formats a value without arguments is up to each user's Foundation, so "% C" stays an error.
+        let extracted = [Extracted(key: "%@ 탭", line: 4, column: 9, comment: "Tab label"), Extracted(key: "CPU 100%", line: 5, column: 9, comment: "Meter label")]
+        let table = "\"%@ 탭\" = \"%lld タブ\";\n\"CPU 100%\" = \"100% CPU\";\n\"tab.label\" = \"%@ タブ\";\n"
+        let report = check(fixture([Source(path: "Settings.swift", text: "", extracted: extracted)], tables: ["ja": table]))
+        let path = "Resources/ja.lproj/Localizable.strings"
+        expect(found(report.diagnostics) == ["E6 \(path):1:1", "E6 \(path):2:1", "W2 \(path):3:1"], "\(found(report.diagnostics))")
     }
 
     section("tables: parse errors, one entry per line, duplicates, empty values, escapes and Hangul") {
