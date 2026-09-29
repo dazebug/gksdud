@@ -181,6 +181,8 @@ final class PreviewFixture {
     func verifyUntouched() -> [String] {
         var problems = recorder.violations.map { "a fake was asked for: \($0)" } + SystemAccess.denied.dropFirst(deniedBefore).map { "blocked: \($0)" }
         if delegate.keyTap != nil { problems.append("an event tap exists") }
+        // A status item would put a second gksdud icon in the user's menu bar.
+        if delegate.item != nil { problems.append("a status item exists") }
         // Engine writes these undo keys before it changes the shortcut or the Input menu.
         problems += ["shortcutBackedUp", "inputMenuBackedUp"].filter { defaults.object(forKey: $0) != nil }.map { "the preview suite holds \($0)" }
         if SystemSnapshot() != before { problems.append("the Input menu or the input source shortcut changed") }

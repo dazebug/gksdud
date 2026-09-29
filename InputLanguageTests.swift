@@ -303,5 +303,5 @@ func runStatusMenuWiringTests() {
         featureCheck(problems.isEmpty, "the preview fixture reached the live system: \(problems)")
         made.close()
     }
-    print("PASS: preview fixture untouched: no event tap, no blocked or recorded system change, no undo keys, same Input menu and shortcut, in the default and attention states")
+    print("PASS: preview fixture untouched: no status item or event tap, no blocked or recorded system change, no undo keys, same Input menu and shortcut, in the default and attention states")
 }
