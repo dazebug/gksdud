@@ -29,10 +29,10 @@ func runScreenshotTests() {
     ScratchDefaults.removeAtExit(scratch)
     defer { try? FileManager.default.removeItem(at: scratch) }
     func failure(_ body: () throws -> Any) -> String { do { _ = try body(); return "" } catch { return error.localizedDescription } }
-    // 360 pt at 2x on any display, so the README can show it at half its pixel width.
+    // 360 pt at 2x on any display, so the README can show it at half its pixel width. No installed sources, so this Mac's do not name the rows.
     let light = scratch.appendingPathComponent("badges.png"), dark = scratch.appendingPathComponent("badges-dark.png")
     do {
-        try renderBadgeStrip(primary: .korean, appearance: .aqua, to: light); try renderBadgeStrip(primary: .korean, appearance: .darkAqua, to: dark)
+        try renderBadgeStrip(primary: .korean, appearance: .aqua, to: light, installed: []); try renderBadgeStrip(primary: .korean, appearance: .darkAqua, to: dark, installed: [])
         let size = try screenshotPixels(light)
         featureCheck(size.width == 720 && FileManager.default.contents(atPath: light.path) != FileManager.default.contents(atPath: dark.path),
             "the badge strip is \(size.width) px wide, expected 720 (360 pt at 2x), and must differ in the dark appearance")
