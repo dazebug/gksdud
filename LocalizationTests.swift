@@ -21,7 +21,8 @@ func runLocalizationTests() {
 }
 
 // The parts of --capture-screenshots that need no screen or Screen Recording, so CI runs them: the offscreen badge strip, the menu's
-// capture rectangle and overlap check, the backdrop placement, blank-file detection and the capture state. runLaunchModeTests has its arguments.
+// capture rectangle with its backdrop and overlap checks, the backdrop placement, blank-file detection and the capture state.
+// runLaunchModeTests has its arguments.
 func runScreenshotTests() {
     let scratch = URL(fileURLWithPath: "/private/tmp/gksdud-self-test-\(UUID().uuidString)", isDirectory: true)
     try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
@@ -50,21 +51,28 @@ func runScreenshotTests() {
     featureCheck(stripFonts.isEmpty, stripFonts.joined(separator: "; "))
     print("PASS: badge strip rows: icon style titles with both badges, one row per glyph named after its source, glyphs in their input language's standard font")
 
-    let me = getpid(), menuLayer = CGWindowLevelForKey(.popUpMenuWindow)
+    let me = getpid(), menuLayer = CGWindowLevelForKey(.popUpMenuWindow), backdrop = CGRect(x: 0, y: 0, width: 720, height: 850)
     func window(_ owner: String, _ pid: pid_t, layer: CGWindowLevel, _ bounds: CGRect, alpha: Double = 1) -> [String: Any] {
         [kCGWindowOwnerName as String: owner, kCGWindowOwnerPID as String: pid, kCGWindowLayer as String: layer, kCGWindowBounds as String: bounds.dictionaryRepresentation, kCGWindowAlpha as String: alpha]
     }
     let menu = window("gksdud", me, layer: menuLayer, CGRect(x: 100, y: 200, width: 240, height: 300))
     let apart = window("Clock", me + 1, layer: 1000, CGRect(x: 0, y: 0, width: 80, height: 80)), invisible = window("Overlay", me + 1, layer: 1000, CGRect(x: 0, y: 0, width: 4000, height: 4000), alpha: 0)
-    let rect = try? menuCaptureRect(windowsAbove: [menu, apart, invisible], process: me)
+    let rect = try? menuCaptureRect(windowsAbove: [menu, apart, invisible], process: me, backdrop: backdrop)
     featureCheck(rect == CGRect(x: 88, y: 188, width: 264, height: 324), "the menu capture must be the menu window plus 12 pt, ignoring windows beside it and invisible ones; got \(rect.map { "\($0)" } ?? "an error")")
-    let covered = failure { try menuCaptureRect(windowsAbove: [window("Notes", me + 1, layer: 1000, CGRect(x: 330, y: 480, width: 50, height: 50)), menu], process: me) }
-    let missing = failure { try menuCaptureRect(windowsAbove: [window("gksdud", me, layer: 0, CGRect(x: 0, y: 0, width: 384, height: 636))], process: me) }
+    let covered = failure { try menuCaptureRect(windowsAbove: [window("Notes", me + 1, layer: 1000, CGRect(x: 330, y: 480, width: 50, height: 50)), menu], process: me, backdrop: backdrop) }
+    let missing = failure { try menuCaptureRect(windowsAbove: [window("gksdud", me, layer: 0, CGRect(x: 0, y: 0, width: 384, height: 636))], process: me, backdrop: backdrop) }
     featureCheck(covered.contains("Notes") && covered.contains("move or close it") && missing.contains("status menu is not on screen"), "overlap and missing-menu failures must say what happened: \(covered) / \(missing)")
+    // The overlap check sees only the windows above the backdrop, so the rectangle -R takes, in whole points, must lie on the backdrop.
+    let narrow = CGRect(x: 90, y: 0, width: 720, height: 850), outside = failure { try menuCaptureRect(windowsAbove: [menu], process: me, backdrop: narrow) }
+    let halfPoint = window("gksdud", me, layer: menuLayer, CGRect(x: 100.5, y: 200, width: 240, height: 300))
+    let whole = try? menuCaptureRect(windowsAbove: [halfPoint], process: me, backdrop: CGRect(x: 88, y: 0, width: 720, height: 850))
+    let past = failure { try menuCaptureRect(windowsAbove: [halfPoint], process: me, backdrop: CGRect(x: 88.5, y: 0, width: 720, height: 850)) }
+    featureCheck(outside.contains("\(CGRect(x: 88, y: 188, width: 264, height: 324))") && outside.contains("\(narrow)") && outside.contains("does not fit") && whole == CGRect(x: 88, y: 188, width: 265, height: 324) && past.contains("does not fit"),
+        "the capture rectangle in whole points must lie on the backdrop, and a failure must name both: \(outside) / \(whole.map { "\($0)" } ?? "an error") / \(past)")
     let screen = NSRect(x: 0, y: 25, width: 1440, height: 850)
     featureCheck(backdropFrame(screen, pointer: NSPoint(x: 1200, y: 400)) == NSRect(x: 0, y: 25, width: 720, height: 850) && backdropFrame(screen, pointer: NSPoint(x: 100, y: 400)) == NSRect(x: 720, y: 25, width: 720, height: 850),
         "the backdrop must take the half of the screen away from the pointer")
-    print("PASS: menu capture: the menu window plus a 12 pt margin, stopped by another app's window over it, backdrop away from the pointer")
+    print("PASS: menu capture: the menu window plus a 12 pt margin in whole points, inside the backdrop, stopped by another app's window over it, backdrop away from the pointer")
 
     let blank = scratch.appendingPathComponent("blank.png"), empty = scratch.appendingPathComponent("empty.png"), absent = scratch.appendingPathComponent("absent.png")
     if let context = CGContext(data: nil, width: 8, height: 8, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {

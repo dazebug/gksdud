@@ -2,8 +2,8 @@ import AppKit
 
 // --capture-screenshots: the README images of the preview fixture. The settings window and the status menu are captured on screen
 // and the badge strip is drawn offscreen. The user's own gksdud runs beside this with the same bundle ID, so the latch is locked,
-// nothing creates a status item or an event tap, the windows ignore the mouse, another app's window over the menu stops the
-// capture, and the fixture's tripwires run afterwards.
+// nothing creates a status item or an event tap, the windows ignore the mouse, a menu that does not fit on its backdrop or has
+// another app's window over it stops the capture, and the fixture's tripwires run afterwards.
 
 struct CaptureFailure: LocalizedError {
     let errorDescription: String?
@@ -45,7 +45,7 @@ func captureScreenshots(to directory: URL, appearance: NSAppearance.Name) throws
     window.orderOut(nil)
 
     // A pop-up menu captured by its window comes out grey, so the menu opens over an opaque backdrop of ours, on the half of the
-    // screen away from the pointer, and the screen rectangle around it is captured.
+    // screen away from the pointer, and the screen rectangle around it is captured if it lies on the backdrop.
     let backdrop = NSWindow(contentRect: backdropFrame(screen.visibleFrame, pointer: NSEvent.mouseLocation), styleMask: .borderless, backing: .buffered, defer: false)
     backdrop.backgroundColor = .windowBackgroundColor; backdrop.ignoresMouseEvents = true; backdrop.isReleasedWhenClosed = false
     backdrop.isRestorable = false; backdrop.animationBehavior = .none
@@ -59,8 +59,12 @@ func captureScreenshots(to directory: URL, appearance: NSAppearance.Name) throws
     // popUp tracks the menu until it closes, so the capture runs from a timer in the common modes, which include menu tracking.
     let timer = Timer(timeInterval: 1, repeats: false) { _ in
         captured = Result {
-            let above = CGWindowListCopyWindowInfo(.optionOnScreenAboveWindow, CGWindowID(backdrop.windowNumber)) as? [[String: Any]] ?? []
-            let rect = try menuCaptureRect(windowsAbove: above, process: getpid()).integral
+            // The backdrop's bounds as the window server has them, in the coordinates of -R.
+            let number = CGWindowID(backdrop.windowNumber)
+            let listed = CGWindowListCopyWindowInfo(.optionIncludingWindow, number) as? [[String: Any]] ?? []
+            guard let placed = listed.first(where: { $0[kCGWindowIsOnscreen as String] as? Bool == true }) else { throw CaptureFailure("the backdrop, window \(number), is not on screen") }
+            let above = CGWindowListCopyWindowInfo(.optionOnScreenAboveWindow, number) as? [[String: Any]] ?? []
+            let rect = try menuCaptureRect(windowsAbove: above, process: getpid(), backdrop: windowBounds(placed))
             try screencapture(["-x", "-R\(Int(rect.minX)),\(Int(rect.minY)),\(Int(rect.width)),\(Int(rect.height))"], to: files[3])
         }
         menu.cancelTracking()
@@ -114,26 +118,29 @@ func screenshotPixels(_ file: URL) throws -> (width: Int, height: Int) {
 }
 
 // The rectangle for menu.png in the global top-left coordinates that CGWindowList and screencapture -R share: our menu window,
-// found among the windows above the backdrop, plus a 12 pt margin. A visible window of another process there would be captured
-// with the menu, so it stops the capture instead.
-func menuCaptureRect(windowsAbove windows: [[String: Any]], process: pid_t) throws -> CGRect {
+// found among the windows above the backdrop, plus a 12 pt margin, in the whole points -R takes. -R captures whatever is on screen
+// and the list holds only the windows above the backdrop, so the rectangle must lie on the backdrop, and a visible window of another
+// process over it stops the capture instead of being captured with the menu.
+func menuCaptureRect(windowsAbove windows: [[String: Any]], process: pid_t, backdrop: CGRect) throws -> CGRect {
     func number(_ window: [String: Any], _ key: CFString) -> NSNumber? { window[key as String] as? NSNumber }
-    func bounds(_ window: [String: Any]) -> CGRect { (window[kCGWindowBounds as String] as? NSDictionary).flatMap { CGRect(dictionaryRepresentation: $0 as CFDictionary) } ?? .null }
-    func visible(_ window: [String: Any]) -> Bool { (number(window, kCGWindowAlpha)?.doubleValue ?? 1) > 0 && !bounds(window).isEmpty }
+    func visible(_ window: [String: Any]) -> Bool { (number(window, kCGWindowAlpha)?.doubleValue ?? 1) > 0 && !windowBounds(window).isEmpty }
     func describe(_ window: [String: Any]) -> String {
         let name = (window[kCGWindowName as String] as? String).map { " \"\($0)\"" } ?? ""
-        return "\(window[kCGWindowOwnerName as String] as? String ?? "an unnamed process") (pid \(number(window, kCGWindowOwnerPID)?.intValue ?? 0))\(name) at layer \(number(window, kCGWindowLayer)?.intValue ?? 0), \(bounds(window))"
+        return "\(window[kCGWindowOwnerName as String] as? String ?? "an unnamed process") (pid \(number(window, kCGWindowOwnerPID)?.intValue ?? 0))\(name) at layer \(number(window, kCGWindowLayer)?.intValue ?? 0), \(windowBounds(window))"
     }
     let ours = windows.filter { number($0, kCGWindowOwnerPID)?.int32Value == process && visible($0) }
     let menus = ours.filter { (number($0, kCGWindowLayer)?.int32Value ?? 0) >= CGWindowLevelForKey(.popUpMenuWindow) }
     guard !menus.isEmpty else {
         throw CaptureFailure("the status menu is not on screen: no window of this process at the pop-up menu layer \(CGWindowLevelForKey(.popUpMenuWindow)) is above the backdrop. Windows above it: \(windows.isEmpty ? "none" : windows.map(describe).joined(separator: "; "))")
     }
-    let rect = menus.map(bounds).reduce(CGRect.null) { $0.union($1) }.insetBy(dx: -12, dy: -12)
-    let covering = windows.filter { number($0, kCGWindowOwnerPID)?.int32Value != process && visible($0) && bounds($0).intersects(rect) }
+    let rect = menus.map(windowBounds).reduce(CGRect.null) { $0.union($1) }.insetBy(dx: -12, dy: -12).integral
+    guard backdrop.contains(rect) else { throw CaptureFailure("the menu does not fit on the backdrop: its capture area \(rect) reaches past the backdrop \(backdrop), where the windows below would be captured") }
+    let covering = windows.filter { number($0, kCGWindowOwnerPID)?.int32Value != process && visible($0) && windowBounds($0).intersects(rect) }
     guard covering.isEmpty else { throw CaptureFailure("\(covering.map(describe).joined(separator: "; ")) is over the menu's capture area \(rect); move or close it and run again") }
     return rect
 }
+
+func windowBounds(_ window: [String: Any]) -> CGRect { (window[kCGWindowBounds as String] as? NSDictionary).flatMap { CGRect(dictionaryRepresentation: $0 as CFDictionary) } ?? .null }
 
 // The half of the screen away from the pointer, so the menu opens without an item highlighted under it.
 func backdropFrame(_ screen: NSRect, pointer: NSPoint) -> NSRect {
