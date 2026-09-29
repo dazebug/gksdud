@@ -80,8 +80,8 @@ extension AppDelegate {
     func refreshIconPreviews() {
         let primary = primaryLanguage(), style = iconStyle
         // In place, because NSPopUpButton drops a duplicate title and would shift the saved index.
-        for (index, style) in IconStyle.allCases.enumerated() {
-            iconPicker.item(at: index)?.attributedTitle = Self.iconStyleTitle(style, primary: primary, font: iconPicker.font ?? .systemFont(ofSize: NSFont.systemFontSize))
+        for (index, each) in IconStyle.allCases.enumerated() {
+            iconPicker.item(at: index)?.attributedTitle = Self.iconStyleTitle(each, primary: primary, font: iconPicker.font ?? .systemFont(ofSize: NSFont.systemFontSize))
         }
         for (preview, language) in [(languagePreview, primary), (englishPreview, .english)] {
             preview.image = Self.badgeImage(style.badge(for: language))

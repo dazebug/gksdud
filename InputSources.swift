@@ -46,7 +46,7 @@ struct InputSources {
     }
     static func source(id: String) -> TISInputSource? { list([kTISPropertyInputSourceID as String: id]).first }
     static func asciiLayout() -> InputSource? { TISCopyCurrentASCIICapableKeyboardLayoutInputSource().flatMap { read($0.takeRetainedValue()) } }
-    // Read-only and for previews only: it also finds the modes of disabled input methods, which source(id:) does not.
+    // Read-only and for previews only: it also finds the non-default modes of disabled input methods, which source(id:) does not.
     static func installed(id: String) -> InputSource? { list([kTISPropertyInputSourceID as String: id], includeAllInstalled: true).first.flatMap(read) }
     // Read-only and for the screenshots' badge strip only: every installed keyboard source, whether or not its input method is enabled.
     static func installed() -> [InputSource] {
