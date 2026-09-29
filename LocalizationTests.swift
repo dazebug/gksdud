@@ -22,7 +22,7 @@ func runLocalizationTests() {
 
 // The parts of --capture-screenshots that need no screen or Screen Recording, so CI runs them: the offscreen badge strip, the menu's
 // capture rectangle with its backdrop, overlap and hover checks, the backdrop placement, blank-file detection, the settings window
-// check and the capture state. runLaunchModeTests has its arguments.
+// check, the screencapture children's supervision, publishing and the capture state. runLaunchModeTests has its arguments.
 func runScreenshotTests() {
     let scratch = URL(fileURLWithPath: "/private/tmp/gksdud-self-test-\(UUID().uuidString)", isDirectory: true)
     try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
@@ -116,6 +116,34 @@ func runScreenshotTests() {
     featureCheck(took < 2 && killed.contains("sleep 30") && CaptureChild.running == nil && kill(sleeper.processIdentifier, 0) == -1 && errno == ESRCH && refused.contains("true was not started") && late.processIdentifier == 0,
         "terminate must end the running child within 2 s and start no other; after \(took) s: \(killed.isEmpty ? "it finished" : killed) / \(refused.isEmpty ? "a later child ran" : refused)")
     print("PASS: capture children: stopped and reaped at their deadline, also when they ignore SIGTERM; the watchdog's terminate kills the running one and starts no other")
+
+    // The published five change only as a whole, after every staged file passed, so a failed run keeps the previous set.
+    let fm = FileManager.default, published = scratch.appendingPathComponent("published"), staged = scratch.appendingPathComponent("staged")
+    func stage(_ folder: URL, _ shade: CGFloat, uniform: Int? = nil) {
+        try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        for (index, name) in screenshotNames.enumerated() {
+            guard let context = CGContext(data: nil, width: 8, height: 8, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { continue }
+            let gray = shade + CGFloat(index) / 50
+            context.setFillColor(CGColor(gray: gray, alpha: 1)); context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+            if index != uniform { context.setFillColor(CGColor(gray: 1 - gray, alpha: 1)); context.fill(CGRect(x: 0, y: 0, width: 4, height: 8)) }
+            try? context.makeImage().map { NSBitmapImageRep(cgImage: $0) }?.representation(using: .png, properties: [:])?.write(to: folder.appendingPathComponent(name))
+        }
+    }
+    func contents(_ folder: URL) -> [Data?] { screenshotNames.map { fm.contents(atPath: folder.appendingPathComponent($0).path) } }
+    stage(published, 0.1); stage(staged, 0.3, uniform: 2)
+    let before = contents(published), withheld = failure { try publishScreenshots(from: staged, to: published, names: screenshotNames) }
+    featureCheck(!before.contains(nil) && withheld.contains("\(screenshotNames[2]) is a single uniform colour") && contents(published) == before,
+        "a staged set with a blank \(screenshotNames[2]) must name it and leave the published five as they were: \(withheld)")
+    stage(staged, 0.3)
+    let replacing = contents(staged), lines = try? publishScreenshots(from: staged, to: published, names: screenshotNames)
+    featureCheck(replacing != before && contents(published) == replacing && contents(staged).allSatisfy { $0 == nil } && lines == screenshotNames.map { "\(published.appendingPathComponent($0).path): 8×8" },
+        "a complete staged set must replace all five, print their sizes and leave nothing staged: \(lines ?? [])")
+    let fresh = scratch.appendingPathComponent("new/ja")
+    stage(staged, 0.2)
+    let moving = contents(staged); _ = try? publishScreenshots(from: staged, to: fresh, names: screenshotNames)
+    featureCheck(!moving.contains(nil) && contents(fresh) == moving && contents(staged).allSatisfy { $0 == nil }, "publishing into a new folder must create it and move all five there")
+    print("PASS: publishing: a staged set with a blank file leaves the published five as they were; a complete one replaces them, or fills a new folder, and leaves nothing staged")
+
     // What the README screenshots show: trusted, on, key-down switching, long press and preservation on, login off, menu bar on,
     // the first icon style and the default test text, with no update or warning.
     _ = NSApplication.shared

@@ -4,7 +4,7 @@ import AppKit
 // and the badge strip is drawn offscreen. The user's own gksdud runs beside this with the same bundle ID, so the latch is locked,
 // nothing creates a status item or an event tap, the windows ignore the mouse, an inactive or grown settings window and a menu
 // that does not fit on its backdrop, has another app's window over it or the pointer on it stop the capture, and the fixture's
-// tripwires run afterwards.
+// tripwires run afterwards. The directory gets the five files only when all of them and the tripwires pass.
 
 struct CaptureFailure: LocalizedError {
     let errorDescription: String?
@@ -29,10 +29,12 @@ func captureScreenshots(to directory: URL, appearance: NSAppearance.Name) throws
     // The display with the menu bar starts the global coordinates at 0,0, so the menu's rectangle for -R never goes negative there.
     guard let screen = NSScreen.screens.first else { throw CaptureFailure("there is no display to capture") }
     if screen.backingScaleFactor < 2 { fputs("warning: the display with the menu bar has scale \(screen.backingScaleFactor), so the screenshots are smaller than the README's 2x images\n", stderr) }
-    let files = screenshotNames.map { directory.appendingPathComponent($0) }
-    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    // A file from an earlier run must not pass for this one.
-    for file in files where FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
+    // A new folder each run, so a file from an earlier run cannot pass for this one, and the directory changes only when all five pass.
+    let staging = URL(fileURLWithPath: "/private/tmp/gksdud-capture-\(getpid())-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: false)
+    ScratchDefaults.removeAtExit(staging)
+    defer { try? FileManager.default.removeItem(at: staging) }
+    let files = screenshotNames.map { staging.appendingPathComponent($0) }
     let fixture = try PreviewFixture(uiLanguage: AppLanguage.current, state: .capture, resolveNames: true)
     defer { fixture.close() }
     let delegate = fixture.delegate, window = delegate.window!
@@ -88,13 +90,9 @@ func captureScreenshots(to directory: URL, appearance: NSAppearance.Name) throws
     try captured.get()
 
     try renderBadgeStrip(primary: delegate.primaryLanguage(), appearance: appearance, to: files[4])
-    var sizes: [String] = [], problems: [String] = []
-    for file in files {
-        do { let pixels = try screenshotPixels(file); sizes.append("\(file.path): \(pixels.width)×\(pixels.height)") } catch { problems.append(error.localizedDescription) }
-    }
-    problems += fixture.verifyUntouched()
-    guard problems.isEmpty else { throw CaptureFailure(problems.joined(separator: "; ")) }
-    sizes.forEach { print($0) }
+    let untouched = fixture.verifyUntouched()
+    guard untouched.isEmpty else { throw CaptureFailure(untouched.joined(separator: "; ")) }
+    try publishScreenshots(from: staging, to: directory, names: screenshotNames).forEach { print($0) }
 }
 
 // The exit status does not tell a blank capture from a real one, so the file is checked as well.
@@ -150,6 +148,24 @@ enum CaptureChild {
         while process.isRunning, ProcessInfo.processInfo.systemUptime < end { usleep(10_000) }
     }
     private static func pump() { RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.01)) }
+}
+
+// Moves the staged screenshots into the directory only when every one of them passes, so a failed capture keeps the previous set.
+// Returns the published files' pixel sizes.
+func publishScreenshots(from staging: URL, to directory: URL, names: [String]) throws -> [String] {
+    let fm = FileManager.default
+    var sizes: [String] = [], problems: [String] = []
+    for name in names {
+        do { let pixels = try screenshotPixels(staging.appendingPathComponent(name)); sizes.append("\(directory.appendingPathComponent(name).path): \(pixels.width)×\(pixels.height)") }
+        catch { problems.append(error.localizedDescription) }
+    }
+    guard problems.isEmpty else { throw CaptureFailure("\(problems.joined(separator: "; ")); \(directory.path) keeps its previous screenshots") }
+    try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+    for name in names {
+        let file = directory.appendingPathComponent(name), staged = staging.appendingPathComponent(name)
+        if fm.fileExists(atPath: file.path) { _ = try fm.replaceItemAt(file, withItemAt: staged) } else { try fm.moveItem(at: staged, to: file) }
+    }
+    return sizes
 }
 
 // A screenshot's pixel size, or why it cannot be one: missing, empty, not an image, or a single colour, as a blank capture is.
