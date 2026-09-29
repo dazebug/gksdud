@@ -382,6 +382,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     init(engine: Engine = Engine(), environment: Environment = .live) { self.engine = engine; self.environment = environment; super.init() }
     let installer = UpdateInstaller()
     var preparedToRelaunch = false
+    var showSettingsAtLaunch = false   // --settings
     lazy var optionInput = makeOptionInput()
     lazy var updates = UpdateChecker(defaults: engine.defaults)
     var updateTimer: Timer?
@@ -792,7 +793,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         timer?.tolerance = 0.2
         if engine.active { do { try engine.shortcut(target: engine.target); try engine.hideSystemInputMenu() } catch { report(error) } }
         repair()
-        if showInMenuBar.state == .off || CommandLine.arguments.contains("--settings") { showSettings() }
+        if showInMenuBar.state == .off || showSettingsAtLaunch { showSettings() }
         UpdateInstaller.acknowledgeLaunch()
     }
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -922,27 +923,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     @objc func quit() { NSApp.terminate(nil) }
 }
 
-if CommandLine.arguments.dropFirst().first == "--install-update" {
+let launchMode = LaunchMode(arguments: Array(CommandLine.arguments.dropFirst()))
+if launchMode.locksSystemAccess { SystemAccess.lock() }
+switch launchMode {
+case .usage(let reason):
+    fputs("gksdud: \(reason)\n\(LaunchMode.usageText)\n", stderr); exit(1)
+case .installUpdate:
     do { try UpdateInstaller.runHelper(CommandLine.arguments) } catch { fputs("Update helper failed: \(error.localizedDescription)\n", stderr); exit(1) }
-} else if let index = CommandLine.arguments.firstIndex(of: "--render-keyboard-ui"), CommandLine.arguments.count > index + 1 {
-    SystemAccess.lock()
-    do { try renderKeyboardUI(to: CommandLine.arguments[index + 1]) } catch { fputs("UI rendering failed: \(error)\n", stderr); exit(1) }
-} else if CommandLine.arguments.contains("--probe-option-input") {
+case .renderKeyboardUI(let directory):
+    do { try renderKeyboardUI(to: directory) } catch { fputs("UI rendering failed: \(error)\n", stderr); exit(1) }
+case .probeOptionInput:
     do { try probeOptionInput() } catch { fputs("Input probe failed: \(error)\n", stderr); exit(1) }
-} else if let index = CommandLine.arguments.firstIndex(of: "--localization-test") {
-    SystemAccess.lock()
+case .localizationTest(let language, let strict):
     setbuf(stdout, nil)
-    // Fail here instead of falling through to a normal, unlocked launch.
-    guard CommandLine.arguments.count > index + 1 else { fputs("Usage: gksdud --localization-test <language> [--strict]\n", stderr); exit(1) }
-    runLocalizationTest(expected: CommandLine.arguments[index + 1], strict: CommandLine.arguments.contains("--strict"))
-} else if CommandLine.arguments.contains("--capture-screenshots") {
-    SystemAccess.lock()
+    runLocalizationTest(expected: language, strict: strict)
+case .captureScreenshots(let directory, let dark):
     setbuf(stdout, nil)
-    // Bad arguments fail here instead of falling through to a normal, unlocked launch.
-    do { let options = try CaptureOptions(arguments: CommandLine.arguments); try captureScreenshots(to: options.directory, appearance: options.appearance) }
+    do { try captureScreenshots(to: URL(fileURLWithPath: directory, isDirectory: true), appearance: dark ? .darkAqua : .aqua) }
     catch { fputs("FAIL: screenshots: \(error.localizedDescription)\n", stderr); exit(1) }
-} else if CommandLine.arguments.contains("--self-test") {
-    SystemAccess.lock()
+case .selfTest:
     // The self-test expects the Korean source text.
     guard AppLanguage.current == "ko" else { fputs("Run --self-test with -AppleLanguages '(ko)' (resolved \(AppLanguage.current)).\n", stderr); exit(1) }
     setbuf(stdout, nil)
@@ -1097,7 +1096,7 @@ if CommandLine.arguments.dropFirst().first == "--install-update" {
     let restored = merged(first, source: sources[2], previous: command, original: NSNumber(value: UInt64(0x7000000e3)))
     precondition(restored.contains { $0[srcKey]?.uint64Value == command && $0[dstKey]?.uint64Value == 0x7000000e3 })
     print("PASS: unrelated mapping preservation, idempotence, source/target switching, wake recovery, prior mapping restoration")
-} else if CommandLine.arguments.contains("--integration-test") {
+case .integrationTest:
     // The suite is the undo state of real shortcut, Input menu and HID changes, so it lives in a folder that exit leaves alone
     // and goes only after a successful restore.
     let kept = URL(fileURLWithPath: "/private/tmp/gksdud-integration-\(UUID().uuidString)", isDirectory: true)
@@ -1145,9 +1144,10 @@ if CommandLine.arguments.dropFirst().first == "--install-update" {
         precondition(!restarted.active, "Explicitly disabled must stay disabled")
         print("PASS: \(count) real keyboards; recovery, target switch, quit cleanup, active/inactive launch preference, restoration")
     } catch { fputs("Integration test failed: \(error)\nIts undo state stays in \(scratch.path).plist\n", stderr); exit(1) }
-} else {
+case .app(let showSettings):
     let app = NSApplication.shared
     let delegate = AppDelegate()
+    delegate.showSettingsAtLaunch = showSettings
     app.delegate = delegate
     app.setActivationPolicy(.accessory)
     app.run()

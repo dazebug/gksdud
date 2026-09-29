@@ -20,8 +20,8 @@ func runLocalizationTests() {
     print("PASS: UI language resolution, CLDR names, ko development region, ko/ja/zh-Hant bundle localizations, Korean Locale")
 }
 
-// The parts of --capture-screenshots that need no screen or Screen Recording, so CI runs them: the offscreen badge strip, the arguments,
-// the menu's capture rectangle and overlap check, the backdrop placement, blank-file detection and the capture state.
+// The parts of --capture-screenshots that need no screen or Screen Recording, so CI runs them: the offscreen badge strip, the menu's
+// capture rectangle and overlap check, the backdrop placement, blank-file detection and the capture state. runLaunchModeTests has its arguments.
 func runScreenshotTests() {
     let scratch = URL(fileURLWithPath: "/private/tmp/gksdud-self-test-\(UUID().uuidString)", isDirectory: true)
     try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
@@ -49,17 +49,6 @@ func runScreenshotTests() {
     let stripFonts = badgeStripFontProblems()
     featureCheck(stripFonts.isEmpty, stripFonts.joined(separator: "; "))
     print("PASS: badge strip rows: icon style titles with both badges, one row per glyph named after its source, glyphs in their input language's standard font")
-
-    func options(_ arguments: String) -> String {
-        do { let parsed = try CaptureOptions(arguments: ["gksdud"] + arguments.split(separator: " ").map(String.init)); return "\(parsed.directory.path) \(parsed.appearance == .darkAqua ? "dark" : "light")" }
-        catch { return error.localizedDescription }
-    }
-    featureCheck(options("--capture-screenshots /private/tmp/shots -AppleLanguages (ja)") == "/private/tmp/shots light" && options("--capture-screenshots /private/tmp/shots --appearance dark") == "/private/tmp/shots dark"
-        && options("-AppleLanguages (ja) --capture-screenshots /private/tmp/shots --appearance light") == "/private/tmp/shots light", "capture arguments must give a directory and light unless dark is asked for")
-    featureCheck(options("--capture-screenshots") == CaptureOptions.usage && options("--capture-screenshots --appearance dark") == CaptureOptions.usage
-        && options("--capture-screenshots /private/tmp/shots --appearance sepia").hasPrefix("--appearance takes light or dark, not sepia.")
-        && options("--capture-screenshots /private/tmp/shots --appearance").hasPrefix("--appearance takes light or dark, not nothing."), "capture argument errors must show the usage")
-    print("PASS: --capture-screenshots arguments: directory, light unless dark, usage on a missing directory or appearance")
 
     let me = getpid(), menuLayer = CGWindowLevelForKey(.popUpMenuWindow)
     func window(_ owner: String, _ pid: pid_t, layer: CGWindowLevel, _ bounds: CGRect, alpha: Double = 1) -> [String: Any] {

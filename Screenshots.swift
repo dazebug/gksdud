@@ -10,21 +10,6 @@ struct CaptureFailure: LocalizedError {
     init(_ message: String) { errorDescription = message }
 }
 
-struct CaptureOptions: Equatable {
-    static let usage = "Usage: gksdud --capture-screenshots <dir> [--appearance light|dark] -AppleLanguages '(<lang>)'"
-    var directory: URL, appearance: NSAppearance.Name
-    init(arguments: [String]) throws {
-        guard let flag = arguments.firstIndex(of: "--capture-screenshots"), let path = arguments.dropFirst(flag + 1).first, !path.hasPrefix("-") else { throw CaptureFailure(Self.usage) }
-        directory = URL(fileURLWithPath: path, isDirectory: true); appearance = .aqua
-        guard let option = arguments.firstIndex(of: "--appearance") else { return }
-        switch arguments.dropFirst(option + 1).first {
-        case "light": appearance = .aqua
-        case "dark": appearance = .darkAqua
-        case let value: throw CaptureFailure("--appearance takes light or dark, not \(value ?? "nothing"). \(Self.usage)")
-        }
-    }
-}
-
 // Stable names, so the READMEs can show them before they are captured.
 let screenshotNames = ["settings-general.png", "settings-caps.png", "settings-symbols.png", "menu.png", "badges.png"]
 

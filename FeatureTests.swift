@@ -43,6 +43,7 @@ func runScratchDefaultsTests() {
 
 func runFeatureTests() {
     runSystemAccessTests()
+    runLaunchModeTests()
     featureCheck(ReleaseVersion("v1.10.0")! > ReleaseVersion("1.9.9")!)
     featureCheck(ReleaseVersion("1.2")! == ReleaseVersion("1.2.0")!)
     for invalid in ["pre-v1.3.0", "1.3.0-beta", "1..2", "1.2x", "", "1.2.99999999999999999999999"] { featureCheck(ReleaseVersion(invalid) == nil) }
@@ -102,6 +103,57 @@ func runSystemAccessTests() {
     catch { featureCheck((error as? SystemAccess.Denied)?.action == "probe" && error.localizedDescription.contains("probe"), "check must throw SystemAccess.Denied naming the action") }
     featureCheck(SystemAccess.denied.suffix(2) == ["probe", "probe"], "check must record its refusal too")
     print("PASS: system access latch locked in --self-test, refusals recorded, check throws SystemAccess.Denied")
+}
+
+// A malformed or conflicting launch must stop at usage, locked, instead of starting the normal app, the live probe or the integration
+// test beside the user's own gksdud. The argument lists of build.sh, CI, CONTRIBUTING, the capture script and the updater must still work.
+func runLaunchModeTests() {
+    func parsed(_ arguments: [String]) -> String { let mode = LaunchMode(arguments: arguments); return "\(arguments) gives \(mode)\(mode.locksSystemAccess ? "" : ", unlocked")" }
+    let rejected = [
+        ["--render-keyboard-ui"], ["--render-keyboard-ui", ""], ["--render-keyboard-ui", "--self-test"], ["--localization-test"], ["--localization-test", "ja", "extra"],
+        ["--self-test", "--probe-option-input"], ["--localization-test", "ja", "--probe-option-input"], ["--capture-screenshots", "/private/tmp/shots", "--probe-option-input"],
+        ["--localization-test", "--probe-option-input", "--strict", "-AppleLanguages", "(--probe-option-input)"], ["--self-test", "-AppleLanguages", "--probe-option-input"],
+        ["--integration-test", "--render-keyboard-ui"], ["--self-test", "--self-test"], ["--self-test", "--install-update"], ["--self-tset"], ["self-test"], ["--"],
+        ["--strict"], ["--self-test", "--settings"], ["--settings", "--settings"], ["--localization-test", "ja", "--strict", "--strict"], ["--self-test", "--appearance", "dark"],
+        ["--capture-screenshots"], ["--capture-screenshots", "--appearance", "dark"], ["--capture-screenshots", "/private/tmp/shots", "--appearance"],
+        ["--capture-screenshots", "/x", "--appearance", "sepia"], ["--capture-screenshots", "/x", "--appearance", "dark", "--appearance", "light"],
+    ]
+    let started = rejected.filter { arguments in
+        let mode = LaunchMode(arguments: arguments)
+        if case .usage = mode, mode.locksSystemAccess { return false }
+        return true
+    }
+    featureCheck(started.isEmpty, "malformed or conflicting arguments must give usage, locked: \(started.map(parsed).joined(separator: "; "))")
+    let shots = "/private/tmp/shots", ui = "/private/tmp/gksdud-ui", update = "/private/tmp/gksdud-update-1"
+    let locked: [([String], LaunchMode)] = [
+        (["--self-test", "-AppleLanguages", "(ko)"], .selfTest), (["--self-test"], .selfTest),
+        (["--localization-test", "ko", "-AppleLanguages", "(en-US)"], .localizationTest(language: "ko", strict: false)),
+        (["--localization-test", "ko", "--strict", "-AppleLanguages", "(en-US)"], .localizationTest(language: "ko", strict: true)),
+        (["--localization-test", "zh-Hant", "-AppleLanguages", "(zh-Hant)"], .localizationTest(language: "zh-Hant", strict: false)),
+        (["--localization-test", "ja", "--strict", "-AppleLanguages", "(ja)"], .localizationTest(language: "ja", strict: true)),
+        (["--capture-screenshots", "/repo/docs/images/ja", "--appearance", "light", "-AppleLanguages", "(ja)"], .captureScreenshots(directory: "/repo/docs/images/ja", dark: false)),
+        (["--capture-screenshots", "/private/tmp/gksdud-captures/ja-dark", "--appearance", "dark", "-AppleLanguages", "(ja)"], .captureScreenshots(directory: "/private/tmp/gksdud-captures/ja-dark", dark: true)),
+        (["--render-keyboard-ui", ui], .renderKeyboardUI(directory: ui)), (["--render-keyboard-ui", ui, "-AppleLanguages", "(ko)"], .renderKeyboardUI(directory: ui)),
+        (["--capture-screenshots", shots, "-AppleLanguages", "(ja)"], .captureScreenshots(directory: shots, dark: false)),
+        (["--capture-screenshots", shots, "--appearance", "dark"], .captureScreenshots(directory: shots, dark: true)),
+        (["-AppleLanguages", "(ja)", "--capture-screenshots", shots, "--appearance", "light"], .captureScreenshots(directory: shots, dark: false)),
+    ]
+    let unlocked: [([String], LaunchMode)] = [
+        ([], .app(showSettings: false)), (["--settings"], .app(showSettings: true)), (["-psn_0_12345"], .app(showSettings: false)), (["-psn_0_12345", "--settings"], .app(showSettings: true)),
+        (["--install-update", update, update + "/expanded/gksdud.app", "1.4.0", "4242"], .installUpdate), (["--probe-option-input"], .probeOptionInput), (["--integration-test"], .integrationTest),
+    ]
+    let misread = locked.filter { LaunchMode(arguments: $0.0) != $0.1 || !$0.1.locksSystemAccess } + unlocked.filter { LaunchMode(arguments: $0.0) != $0.1 || $0.1.locksSystemAccess }
+    featureCheck(misread.isEmpty, "launch arguments misread: \(misread.map { "\(parsed($0.0)), expected \($0.1)" }.joined(separator: "; "))")
+    func reason(_ arguments: [String]) -> String { if case .usage(let reason) = LaunchMode(arguments: arguments) { return reason }; return "" }
+    let named = [(["--self-tset"], "--self-tset"), (["self-test"], "self-test"), (["--render-keyboard-ui"], "--render-keyboard-ui"), (["--self-test", "--probe-option-input"], "--probe-option-input"),
+                 (["--strict"], "--localization-test"), (["--capture-screenshots", shots, "--appearance", "sepia"], "sepia")]
+    featureCheck(named.allSatisfy { reason($0.0).contains($0.1) }, "usage must name what is wrong: \(named.map { reason($0.0) })")
+    print("PASS: launch modes: the arguments of build.sh, CI, CONTRIBUTING and the capture script lock; the app, updater, probe and integration test do not; missing or dash values, unknown, bare, repeated, conflicting and misplaced arguments give usage")
+    // scripts/capture-screenshots.sh reads the marker without running the app. The bare binary that CI's crash diagnosis runs has no Info.plist.
+    guard Bundle.main.bundleURL.pathExtension == "app" else { print("SKIP: GKSDUDLaunchModes marker (bare binary without Info.plist)"); return }
+    let marker = Bundle.main.object(forInfoDictionaryKey: "GKSDUDLaunchModes")
+    featureCheck(marker as? Int == LaunchMode.contract, "Info.plist's GKSDUDLaunchModes is \(marker.map { "\($0)" } ?? "missing"), expected LaunchMode.contract \(LaunchMode.contract)")
+    print("PASS: Info.plist's GKSDUDLaunchModes \(LaunchMode.contract) matches LaunchMode.contract")
 }
 
 func runOptionInputTests() {
