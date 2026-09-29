@@ -155,7 +155,7 @@ func specifiers(_ text: String) -> [Specifier] {
     }
     return result
 }
-func formatMismatch(_ source: String, _ translation: String) -> String? {
+func formatMismatch(_ source: String, _ translation: String, as names: (String, String) = ("in the original", "in the translation")) -> String? {
     func signature(_ text: String) -> (arguments: [Int: String], count: Int, mixed: Bool) {
         var arguments: [Int: String] = [:], next = 1, positional = false, sequential = false
         let found = specifiers(text).flatMap(\.arguments)
@@ -168,7 +168,7 @@ func formatMismatch(_ source: String, _ translation: String) -> String? {
     let a = signature(source), b = signature(translation)
     guard a.count != b.count || a.arguments != b.arguments || a.mixed || b.mixed else { return nil }
     func list(_ text: String) -> String { let found = specifiers(text).map(\.text); return found.isEmpty ? "none" : found.joined(separator: " ") }
-    return "\(list(source)) in the original, \(list(translation)) in the translation"
+    return "\(list(source)) \(names.0), \(list(translation)) \(names.1)"
 }
 // A case particle's form depends on the final sound of the word before it, which a placeholder hides (F19은 is wrong).
 func particle(after text: String) -> String? {
@@ -278,6 +278,10 @@ func check(_ project: Project) -> Report {
         for entry in extracted {
             if source.isTest { at("W11", entry.line, entry.column, "tests compare with the Korean source text; String(localized:) here adds a key that needs translating"); continue }
             if entry.table != "Localizable" { at("W8", entry.line, entry.column, "String(localized:) uses the table \(entry.table); only Localizable is translated, so this text stays Korean"); continue }
+            // Every use of a key shares one translation, which cannot match two different sets of specifiers.
+            if let first = uses[entry.key]?.first, let mismatch = formatMismatch(first.entry.text, entry.text, as: ("at \(first.file):\(first.entry.line)", "here")) {
+                at("E6", entry.line, entry.column, "format specifiers differ between the uses of \"\(escaped(entry.key))\": \(mismatch); no single translation can match both")
+            }
             if uses[entry.key] == nil { keys.append(entry.key) }
             uses[entry.key, default: []].append((source.path, entry))
             if entry.comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, entry.text.count <= 6 || !specifiers(entry.text).isEmpty {
@@ -319,11 +323,12 @@ func check(_ project: Project) -> Report {
         var stale = 0
         for entry in entries {
             func at(_ rule: String, _ message: String) { diagnostics.append(Diagnostic(rule: rule, file: path, line: entry.line, column: entry.column, message: message)) }
-            let source = uses[entry.key]?[0].entry.text
-            if source == nil { stale += 1; at("W2", "\(language): stale translation \"\(escaped(entry.key))\" is no longer used in code") }
+            let texts = (uses[entry.key] ?? []).map { $0.entry.text }
+            if texts.isEmpty { stale += 1; at("W2", "\(language): stale translation \"\(escaped(entry.key))\" is no longer used in code") }
             if hasHangul(entry.value) { at("W3", "\(language): the translation of \"\(escaped(entry.key))\" contains Korean text") }
-            // Nothing looks up a stale entry, so its format cannot break a user; W2 reports it without stopping the build.
-            if let source, let mismatch = formatMismatch(source, entry.value) { at("E6", "format specifiers differ for \"\(escaped(entry.key))\": \(mismatch)") }
+            // Nothing looks up a stale entry, so it has no text to compare; W2 reports it without stopping the build.
+            let mismatches = texts.compactMap { formatMismatch($0, entry.value) }
+            for (index, mismatch) in mismatches.enumerated() where !mismatches[..<index].contains(mismatch) { at("E6", "format specifiers differ for \"\(escaped(entry.key))\": \(mismatch)") }
         }
         counts.append("\(language) \(absent.count) missing \(stale) stale")
         missing.append((language, absent.count))
@@ -588,13 +593,21 @@ func selfTest() -> Bool {
         expect(formatMismatch("%lld %@", "%'lld %@") != nil, "Foundation prints %' as text, so the %@ after it would read the number")
     }
 
-    section("E6 compares a translation with its key's use in code, literal % text included, and a stale entry gets W2 only") {
+    section("E6 compares a translation with every use of its key, literal % text included; the uses must agree, and a stale entry gets W2 only") {
         // Whether String(localized:) formats a value without arguments is up to each user's Foundation, so "% C" stays an error.
         let extracted = [Extracted(key: "%@ 탭", line: 4, column: 9, comment: "Tab label"), Extracted(key: "CPU 100%", line: 5, column: 9, comment: "Meter label")]
         let table = "\"%@ 탭\" = \"%lld タブ\";\n\"CPU 100%\" = \"100% CPU\";\n\"tab.label\" = \"%@ タブ\";\n"
         let report = check(fixture([Source(path: "Settings.swift", text: "", extracted: extracted)], tables: ["ja": table]))
         let path = "Resources/ja.lproj/Localizable.strings"
         expect(found(report.diagnostics) == ["E6 \(path):1:1", "E6 \(path):2:1", "W2 \(path):3:1"], "\(found(report.diagnostics))")
+        func shared(_ values: [String]) -> Report {
+            let uses = values.enumerated().map { Extracted(key: "shared", line: $0 + 1, column: 9, comment: "Value label", value: $1) }
+            return check(fixture([Source(path: "Values.swift", text: "", extracted: uses)], tables: ["ja": "\"shared\" = \"値 %@\";\n"]))
+        }
+        let conflict = shared(["값 %@", "값 %lld"])
+        expect(found(conflict.diagnostics) == ["E6 \(path):1:1", "E6 Values.swift:2:9"], "the Int use must not pass an Int to %@: \(found(conflict.diagnostics))")
+        expect(conflict.diagnostics.first { $0.file == "Values.swift" }?.message.contains("Values.swift:1") == true, "the error at the second use names the first: \(conflict.diagnostics.map(\.message))")
+        expect(shared(["값 %@", "값: %@"]).diagnostics.isEmpty, "uses with the same specifiers share a translation")
     }
 
     section("tables: parse errors, one entry per line, duplicates, empty values, escapes and Hangul") {
