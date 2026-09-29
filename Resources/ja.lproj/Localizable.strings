@@ -12,7 +12,7 @@
 /* KeyboardManagement.swift:73 Keyboard warning tooltip (General tab), after a keyboard name and a colon: another key mapping on that keyboard already produces the internal switch key. */
 "전환 키가 다른 매핑에서 사용 중입니다." = "内部切り替えキーはほかのマッピングで使用されています。";
 /* KeyboardManagement.swift:82 Keyboard settings sheet and keyboard warning tooltip: name of a keyboard that reports no product name. */
-"이름 없는 키보드" = "不明な外部キーボード";
+"이름 없는 키보드" = "名称未設定のキーボード";
 /* KeyboardManagement.swift:157 General tab: orange warning under the enable checkbox, also added to the menu bar icon tooltip, while the list of keyboards keeps failing to load. gksdud retries on its own. */
 "키보드 목록을 확인하지 못해 다시 시도하고 있습니다." = "キーボードリストを取得できないため、再試行しています。";
 /* KeyboardManagement.swift:159 General tab: orange warning under the enable checkbox, also added to the menu bar icon tooltip, while the key mapping keeps failing on some keyboards. gksdud retries on its own. */
@@ -40,7 +40,7 @@
 "%@ 적용 설정" = "%@の適用設定";
 
 /* SettingsWindow.swift:24 Settings window, at the top on every tab: placeholder of the empty switch test field. The Korean says try switching between Korean and English; translate it as trying the input source switch. */
-"한영 전환을 테스트해보세요" = "切り替えを試してみてください";
+"한영 전환을 테스트해보세요" = "切り替えを試してください";
 /* SettingsWindow.swift:25 Settings window, at the top on every tab: accessibility label of the text field for trying the input source switch. VoiceOver names the control type after the label, so leave it out. */
 "한영 전환 테스트 입력창" = "入力ソースの切り替えテスト";
 /* SettingsWindow.swift:42 Settings window: title of the General tab button. */
@@ -68,7 +68,7 @@
 /* SettingsWindow.swift:138 Case tab: hint under the long-press checkbox. A press switches the input source at once; holding the key toggles uppercase and lowercase. */
 "누른 즉시 한영 전환, 길게 유지시 대소문자 전환" = "押すとすぐに入力ソースを、長押しで大文字/小文字を切り替え";
 /* SettingsWindow.swift:141 Special characters tab: checkbox. Option characters are typed as in English even in Korean input. It works only for Korean input; say so in translations. */
-"영어처럼 특수문자 입력" = "韓国語入力でも英語と同じように特殊文字を入力";
+"영어처럼 특수문자 입력" = "英語と同じように特殊文字を入力（韓国語のみ）";
 /* SettingsWindow.swift:142 Special characters tab: checkbox that blocks Option characters, so Option with a letter types the plain letter. It works in every input language. */
 "Option 문자 입력 차단" = "Optionキーでの文字入力をブロック";
 /* SettingsWindow.swift:146 Special characters tab: hint under the type-like-English checkbox: in Korean input, ⌥8 still types •. Name Korean input explicitly in translations, because the option works only there. */
@@ -78,7 +78,7 @@
 /* SettingsWindow.swift:179 About tab: button that opens the page for sponsoring the developer. */
 "후원" = "スポンサー";
 /* SettingsWindow.swift:224 About tab: update status when the downloaded update cannot restart gksdud because a settings change is still being applied. */
-"설정을 적용하고 있습니다. 잠시 후 다시 시도해주세요." = "設定を適用しています。あとでやり直してください。";
+"설정을 적용하고 있습니다. 잠시 후 다시 시도해주세요." = "設定を適用しています。しばらくしてからやり直してください。";
 /* SettingsWindow.swift:257 About tab: update status while checking for a new version. */
 "업데이트 확인 중…" = "アップデートを確認中…";
 /* SettingsWindow.swift:260 About tab: update status after a check. %@ is the date and time of the last successful check, formatted for the user's region. */
@@ -166,13 +166,13 @@
 /* UpdateInstaller.swift:161 About tab: update status when a system tool that lists or unpacks the downloaded archive failed. */
 "업데이트 파일을 준비하지 못했습니다." = "アップデートファイルを準備できませんでした。";
 /* UpdateInstaller.swift:177, UpdateInstaller.swift:220 Update error in the About tab or the update helper's alert: gksdud cannot write to the folder it is installed in. Use Apple's name for the Applications folder. */
-"앱 설치 폴더에 쓰기 권한이 없습니다. 쓰기 가능한 응용 프로그램 폴더에서 다시 시도해주세요." = "アプリがあるフォルダに書き込むためのアクセス権がありません。書き込み可能な“アプリケーション”フォルダでやり直してください。";
+"앱 설치 폴더에 쓰기 권한이 없습니다. 쓰기 가능한 응용 프로그램 폴더에서 다시 시도해주세요." = "アプリがあるフォルダに書き込むためのアクセス権がありません。gksdudを書き込み可能な“アプリケーション”フォルダに移動して、やり直してください。";
 /* UpdateInstaller.swift:188 Update helper alert: undoing the update stopped because the new app could not be quit. %@ is the path where the old app is kept. */
 "새 앱을 종료하지 못해 복원을 중단했습니다. 기존 앱은 %@에 보관되어 있습니다." = "新しいアプリを終了できなかったため、復元を中止しました。以前のアプリは%@に保存されています。";
 /* UpdateInstaller.swift:196 Update helper alert: putting the old app back did not finish. %@ is the path where the old app is kept. */
 "자동 복원이 완료되지 않았습니다. 기존 앱은 %@에 보관되어 있습니다." = "自動復元が完了しませんでした。以前のアプリは%@に保存されています。";
 /* UpdateInstaller.swift:198 Update helper alert: the update did not finish, so gksdud put the old app back. */
-"업데이트를 완료하지 못해 기존 앱으로 복원했습니다." = "アップデートを完了できなかったため、以前のアプリに戻しました。";
+"업데이트를 완료하지 못해 기존 앱으로 복원했습니다." = "アップデートを完了できなかったため、以前のアプリを復元しました。";
 /* UpdateInstaller.swift:224 About tab: update status while the update downloads. */
 "업데이트 다운로드 중…" = "アップデートをダウンロード中…";
 /* UpdateInstaller.swift:238 About tab: update status while gksdud checks the downloaded app's checksum and signature. */
@@ -237,7 +237,7 @@
 /* main.swift:586 Case tab: tooltip of the long-press checkbox. The key is the switch key chosen in the General tab. */
 "선택한 한영 키를 0.5초 누르면 영어로 전환하고 Caps Lock을 켜거나 끕니다." = "選択した切り替えキーを0.5秒長押しすると、英語に切り替えてCaps Lockのオン/オフを切り替えます。";
 /* main.swift:587 Case tab: tooltip of the long-press checkbox without Accessibility access. Use the same words as the General tab and its Accessibility access button. */
-"일반 탭의 접근성 권한 허용 버튼으로 권한을 허용해주세요." = "“一般”タブの“アクセスを許可”ボタンで、アクセスを許可してください。";
+"일반 탭의 접근성 권한 허용 버튼으로 권한을 허용해주세요." = "“一般”タブの“アクセスを許可”ボタンから、アクセシビリティへのアクセスを許可してください。";
 /* main.swift:588 General tab: tooltip of the Accessibility access button. */
 "키를 누르는 순간 전환하려면 접근성 권한이 필요합니다." = "キーを押した瞬間に切り替えるには、アクセシビリティへのアクセスが必要です。";
 /* main.swift:589 General tab: tooltip of the switch-on-key-down checkbox without Accessibility access. The access button is to its right; until access is granted, switching works as before, on key release through the macOS shortcut. */
@@ -251,7 +251,7 @@
 /* main.swift:593 General tab: tooltip of the switch-on-key-down checkbox while macOS has not yet applied the Accessibility access. */
 "권한 반영을 기다리는 중입니다. 계속 전환되지 않으면 앱을 다시 실행하세요." = "アクセス許可が反映されるのを待っています。それでも切り替わらない場合は、アプリを再起動してください。";
 /* main.swift:619 Case tab: tooltip of the long-press checkbox after a hold could not confirm the switch to English. %@ is the name of the input language the hold started from, such as Japanese. */
-"영어 전환을 확인하지 못해 대문자 전환을 취소했습니다. 영어와 %@ 입력 소스를 최근 입력 소스로 선택해주세요." = "英語への切り替えを確認できなかったため、大文字への切り替えをキャンセルしました。英語と%@の入力ソースを選択して、最近使用した入力ソースにしてください。";
+"영어 전환을 확인하지 못해 대문자 전환을 취소했습니다. 영어와 %@ 입력 소스를 최근 입력 소스로 선택해주세요." = "英語への切り替えを確認できなかったため、大文字/小文字の切り替えをキャンセルしました。英語と%@の入力ソースを順に選択して、最近使った2つの入力ソースにしてください。";
 /* main.swift:746 App menu: item that quits gksdud (⌘Q). */
 "gksdud 종료" = "gksdudを終了";
 /* main.swift:748 Main menu: title of the Edit menu, which the settings window's text field uses. */
