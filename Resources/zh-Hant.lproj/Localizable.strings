@@ -17,6 +17,8 @@
 "키보드 목록을 확인하지 못해 다시 시도하고 있습니다." = "無法取得鍵盤列表，正在重試。";
 /* KeyboardManagement.swift:159 General tab: orange warning under the enable checkbox, also added to the menu bar icon tooltip, while the key mapping keeps failing on some keyboards. gksdud retries on its own. */
 "일부 키보드에 설정을 적용하지 못해 다시 시도하고 있습니다." = "無法將設定套用到部分鍵盤，正在重試。";
+/* KeyboardManagement.swift:163 Keyboard warning tooltip (General tab), one line per failing keyboard: the first %@ is the keyboard name, the second %@ the reason it failed. Use your language's punctuation between them. */
+"%@: %@" = "%@：%@";
 /* KeyboardManagement.swift:253 Keyboard warning tooltip (General tab): stands in for a keyboard name, before the colon, when the list of keyboards itself could not be read. */
 "키보드 목록" = "鍵盤列表";
 

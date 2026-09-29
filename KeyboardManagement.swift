@@ -160,7 +160,7 @@ final class KeyboardManager {
     }
     var warningDetails: String? {
         let details = failures.values.filter { $0.count >= 3 }
-            .sorted { $0.name < $1.name }.map { "\($0.name): \($0.reason)" }
+            .sorted { $0.name < $1.name }.map { String(localized: "\($0.name): \($0.reason)", comment: "Keyboard warning tooltip (General tab), one line per failing keyboard: the first %@ is the keyboard name, the second %@ the reason it failed. Use your language's punctuation between them.") }
         return details.isEmpty ? nil : details.joined(separator: "\n")
     }
     static var bootSession: String? {
