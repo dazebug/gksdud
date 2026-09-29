@@ -2,8 +2,8 @@ import AppKit
 
 // --capture-screenshots: the README images of the preview fixture. The settings window and the status menu are captured on screen
 // and the badge strip is drawn offscreen. The user's own gksdud runs beside this with the same bundle ID, so the latch is locked,
-// nothing creates a status item or an event tap, the windows ignore the mouse, a menu that does not fit on its backdrop or has
-// another app's window over it stops the capture, and the fixture's tripwires run afterwards.
+// nothing creates a status item or an event tap, the windows ignore the mouse, a menu that does not fit on its backdrop, has
+// another app's window over it or the pointer on it stops the capture, and the fixture's tripwires run afterwards.
 
 struct CaptureFailure: LocalizedError {
     let errorDescription: String?
@@ -65,7 +65,11 @@ func captureScreenshots(to directory: URL, appearance: NSAppearance.Name) throws
             guard let placed = listed.first(where: { $0[kCGWindowIsOnscreen as String] as? Bool == true }) else { throw CaptureFailure("the backdrop, window \(number), is not on screen") }
             let above = CGWindowListCopyWindowInfo(.optionOnScreenAboveWindow, number) as? [[String: Any]] ?? []
             let rect = try menuCaptureRect(windowsAbove: above, process: getpid(), backdrop: windowBounds(placed))
+            // CGEvent's location has the top-left origin of the window list; the menu itself is the capture area less its margin.
+            let hovering = { menuHoverProblem(highlighted: menu.highlightedItem?.title, pointer: CGEvent(source: nil)?.location, menu: rect.insetBy(dx: 12, dy: 12)) }
+            if let problem = hovering() { throw CaptureFailure(problem) }
             try screencapture(["-x", "-R\(Int(rect.minX)),\(Int(rect.minY)),\(Int(rect.width)),\(Int(rect.height))"], to: files[3])
+            if let problem = hovering() { throw CaptureFailure(problem) }
         }
         menu.cancelTracking()
     }
@@ -141,6 +145,15 @@ func menuCaptureRect(windowsAbove windows: [[String: Any]], process: pid_t, back
 }
 
 func windowBounds(_ window: [String: Any]) -> CGRect { (window[kCGWindowBounds as String] as? NSDictionary).flatMap { CGRect(dictionaryRepresentation: $0 as CFDictionary) } ?? .null }
+
+// The menu tracks the pointer even though the backdrop and the settings window ignore it, so a hovered row would be captured
+// highlighted; a pointer that has just reached the menu may not have highlighted its row yet. There is no retry.
+func menuHoverProblem(highlighted: String?, pointer: CGPoint?, menu: CGRect) -> String? {
+    let again = "keep the pointer off the menu and run the capture again"
+    if let highlighted { return "the menu item \"\(highlighted)\" is highlighted; \(again)" }
+    if let pointer, menu.contains(pointer) { return "the pointer is on the menu at \(pointer); \(again)" }
+    return nil
+}
 
 // The half of the screen away from the pointer, so the menu opens without an item highlighted under it.
 func backdropFrame(_ screen: NSRect, pointer: NSPoint) -> NSRect {

@@ -21,7 +21,7 @@ func runLocalizationTests() {
 }
 
 // The parts of --capture-screenshots that need no screen or Screen Recording, so CI runs them: the offscreen badge strip, the menu's
-// capture rectangle with its backdrop and overlap checks, the backdrop placement, blank-file detection and the capture state.
+// capture rectangle with its backdrop, overlap and hover checks, the backdrop placement, blank-file detection and the capture state.
 // runLaunchModeTests has its arguments.
 func runScreenshotTests() {
     let scratch = URL(fileURLWithPath: "/private/tmp/gksdud-self-test-\(UUID().uuidString)", isDirectory: true)
@@ -55,7 +55,7 @@ func runScreenshotTests() {
     func window(_ owner: String, _ pid: pid_t, layer: CGWindowLevel, _ bounds: CGRect, alpha: Double = 1) -> [String: Any] {
         [kCGWindowOwnerName as String: owner, kCGWindowOwnerPID as String: pid, kCGWindowLayer as String: layer, kCGWindowBounds as String: bounds.dictionaryRepresentation, kCGWindowAlpha as String: alpha]
     }
-    let menu = window("gksdud", me, layer: menuLayer, CGRect(x: 100, y: 200, width: 240, height: 300))
+    let menuBounds = CGRect(x: 100, y: 200, width: 240, height: 300), menu = window("gksdud", me, layer: menuLayer, menuBounds)
     let apart = window("Clock", me + 1, layer: 1000, CGRect(x: 0, y: 0, width: 80, height: 80)), invisible = window("Overlay", me + 1, layer: 1000, CGRect(x: 0, y: 0, width: 4000, height: 4000), alpha: 0)
     let rect = try? menuCaptureRect(windowsAbove: [menu, apart, invisible], process: me, backdrop: backdrop)
     featureCheck(rect == CGRect(x: 88, y: 188, width: 264, height: 324), "the menu capture must be the menu window plus 12 pt, ignoring windows beside it and invisible ones; got \(rect.map { "\($0)" } ?? "an error")")
@@ -69,10 +69,16 @@ func runScreenshotTests() {
     let past = failure { try menuCaptureRect(windowsAbove: [halfPoint], process: me, backdrop: CGRect(x: 88.5, y: 0, width: 720, height: 850)) }
     featureCheck(outside.contains("\(CGRect(x: 88, y: 188, width: 264, height: 324))") && outside.contains("\(narrow)") && outside.contains("does not fit") && whole == CGRect(x: 88, y: 188, width: 265, height: 324) && past.contains("does not fit"),
         "the capture rectangle in whole points must lie on the backdrop, and a failure must name both: \(outside) / \(whole.map { "\($0)" } ?? "an error") / \(past)")
+    // menu.png would show the row under the pointer highlighted, and a pointer that just reached the menu has not highlighted it yet.
+    let highlighted = menuHoverProblem(highlighted: "Hiragana", pointer: CGPoint(x: 10, y: 10), menu: menuBounds)
+    let pointed = menuHoverProblem(highlighted: nil, pointer: CGPoint(x: 150, y: 250), menu: menuBounds)
+    let clear = [CGPoint(x: 10, y: 10), nil].map { menuHoverProblem(highlighted: nil, pointer: $0, menu: menuBounds) }
+    featureCheck(highlighted?.contains("\"Hiragana\"") == true && pointed?.contains("pointer is on the menu") == true && [highlighted, pointed].allSatisfy { $0?.contains("keep the pointer off the menu") == true } && clear == [nil, nil],
+        "a highlighted item or the pointer on the menu must stop its capture by name: \(highlighted ?? "nil") / \(pointed ?? "nil") / \(clear)")
     let screen = NSRect(x: 0, y: 25, width: 1440, height: 850)
     featureCheck(backdropFrame(screen, pointer: NSPoint(x: 1200, y: 400)) == NSRect(x: 0, y: 25, width: 720, height: 850) && backdropFrame(screen, pointer: NSPoint(x: 100, y: 400)) == NSRect(x: 720, y: 25, width: 720, height: 850),
         "the backdrop must take the half of the screen away from the pointer")
-    print("PASS: menu capture: the menu window plus a 12 pt margin in whole points, inside the backdrop, stopped by another app's window over it, backdrop away from the pointer")
+    print("PASS: menu capture: the menu window plus a 12 pt margin in whole points, inside the backdrop, stopped by another app's window over it or by a highlighted item or the pointer on the menu, backdrop away from the pointer")
 
     let blank = scratch.appendingPathComponent("blank.png"), empty = scratch.appendingPathComponent("empty.png"), absent = scratch.appendingPathComponent("absent.png")
     if let context = CGContext(data: nil, width: 8, height: 8, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
