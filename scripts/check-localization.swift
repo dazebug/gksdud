@@ -122,26 +122,35 @@ func isHangul(_ scalar: Unicode.Scalar) -> Bool {
 func hasHangul(_ text: String) -> Bool { text.unicodeScalars.contains(where: isHangul) }
 
 // printf specifiers as String(localized:) writes interpolations (%@, %lld, %lf), with the n$ positions translators may add.
-struct Specifier { let position: Int?, conversion: String, text: String, end: Int }
+// Each lists the arguments Foundation reads for it, in order: a * width, a .* precision, then the value.
+struct Argument: Equatable { let position: Int?, conversion: String }
+struct Specifier { let arguments: [Argument], text: String, end: Int }
 func specifiers(_ text: String) -> [Specifier] {
     let scalars = Array(text.unicodeScalars)
     var result: [Specifier] = [], i = 0
     func string(_ range: Range<Int>) -> String { String(String.UnicodeScalarView(scalars[range.clamped(to: 0..<scalars.count)])) }
     func has(_ set: String, _ index: Int) -> Bool { index < scalars.count && set.unicodeScalars.contains(scalars[index]) }
     func digits(from index: Int) -> Int { var end = index; while has("0123456789", end) { end += 1 }; return end }
+    func numbered(_ index: Int) -> (position: Int?, end: Int) {
+        let number = digits(from: index)
+        return number > index && has("$", number) ? (Int(string(index..<number)), number + 1) : (nil, index)
+    }
     while i < scalars.count {
         guard scalars[i] == "%" else { i += 1; continue }
         if has("%", i + 1) { i += 2; continue }
-        var j = i + 1, position: Int?
-        let number = digits(from: j)
-        if number > j, has("$", number) { position = Int(string(j..<number)); j = number + 1 }
-        while has("-+ #0'", j) { j += 1 }
-        j = digits(from: j)
-        if has(".", j) { j = digits(from: j + 1) }
+        let value = numbered(i + 1)
+        var j = value.end, arguments: [Argument] = []
+        // Foundation's format parser has no ' flag; it prints %' as text.
+        while has("-+ #0", j) { j += 1 }
+        if has("*", j) { let width = numbered(j + 1); arguments.append(Argument(position: width.position, conversion: "*")); j = width.end } else { j = digits(from: j) }
+        if has(".", j), has("*", j + 1) { let precision = numbered(j + 2); arguments.append(Argument(position: precision.position, conversion: ".*")); j = precision.end }
+        else if has(".", j) { j = digits(from: j + 1) }
         let length = ["hh", "ll", "h", "l", "q", "L", "z", "t", "j"].first { string(j..<(j + 2)).hasPrefix($0) } ?? ""
         j += length.count
-        guard has("@diuoxXfFeEgGaAcCsSp", j) else { i += 1; continue }
-        result.append(Specifier(position: position, conversion: length + String(scalars[j]), text: string(i..<(j + 1)), end: j + 1))
+        guard has("@diuoxXDUOfFeEgGaAcCsSpnP", j) else { i += 1; continue }
+        // Foundation reads %D, %U and %O like %d, %u and %o, not as the long that printf(3) documents.
+        let conversion = length + (["D": "d", "U": "u", "O": "o"][String(scalars[j])] ?? String(scalars[j]))
+        result.append(Specifier(arguments: arguments + [Argument(position: value.position, conversion: conversion)], text: string(i..<(j + 1)), end: j + 1))
         i = j + 1
     }
     return result
@@ -149,10 +158,10 @@ func specifiers(_ text: String) -> [Specifier] {
 func formatMismatch(_ source: String, _ translation: String) -> String? {
     func signature(_ text: String) -> (arguments: [Int: String], count: Int, mixed: Bool) {
         var arguments: [Int: String] = [:], next = 1, positional = false, sequential = false
-        let found = specifiers(text)
-        for specifier in found {
-            if let position = specifier.position { arguments[position] = specifier.conversion; positional = true }
-            else { arguments[next] = specifier.conversion; next += 1; sequential = true }
+        let found = specifiers(text).flatMap(\.arguments)
+        for argument in found {
+            if let position = argument.position { arguments[position] = argument.conversion; positional = true }
+            else { arguments[next] = argument.conversion; next += 1; sequential = true }
         }
         return (arguments, found.count, positional && sequential)
     }
@@ -562,13 +571,20 @@ func selfTest() -> Bool {
         expect(report.summary.contains("; 3 unwrapped;"), report.summary)
     }
 
-    section("format specifiers: positions, %%, length modifiers and counts") {
+    section("format specifiers: positions, %%, length modifiers, * widths and precisions, Foundation's conversions and counts") {
+        func conversions(_ text: String) -> [String] { specifiers(text).flatMap(\.arguments).map(\.conversion) }
         expect(formatMismatch("%@ %lld", "%2$lld %1$@") == nil, "reordered positional specifiers must match")
         expect(formatMismatch("%@ %lld", "%lld %@") != nil, "swapped conversions must not match")
-        expect(specifiers("100%% %@").map(\.conversion) == ["@"] && formatMismatch("100%% %@", "%@ 100%%") == nil, "%% must be ignored")
-        expect(specifiers("%lf %.1f %5lld").map(\.conversion) == ["lf", "f", "lld"] && formatMismatch("%lf", "%1$lf") == nil && formatMismatch("%lf", "%f") != nil, "the length modifier belongs to the conversion")
+        expect(conversions("100%% %@") == ["@"] && formatMismatch("100%% %@", "%@ 100%%") == nil, "%% must be ignored")
+        expect(conversions("%lf %.1f %5lld") == ["lf", "f", "lld"] && formatMismatch("%lf", "%1$lf") == nil && formatMismatch("%lf", "%f") != nil, "the length modifier belongs to the conversion")
         expect(formatMismatch("%@ %@", "%@") != nil && formatMismatch("%@", "%@ %@") != nil, "a count mismatch must not match")
         expect(specifiers("50% 할인").isEmpty && formatMismatch("%@", "%2$@ %@") != nil, "a lone % is text, and mixed positional forms do not match")
+        expect(conversions("%*d") == ["*", "d"] && conversions("%-*.*lld") == ["*", ".*", "lld"], "a * width and a .* precision read an int argument each, before the value: \(conversions("%*d")) \(conversions("%-*.*lld"))")
+        expect(formatMismatch("%@", "%@ %*d") != nil && formatMismatch("%lld", "%lld %.*d") != nil, "an added * width or .* precision must not match")
+        expect(formatMismatch("%*d", "%2$*1$d") == nil && formatMismatch("%*d", "%1$*2$d") != nil, "a * width keeps its n$ position")
+        expect(formatMismatch("%@", "%@ %D") != nil && formatMismatch("%d", "%D") == nil && formatMismatch("%lu", "%lU") == nil && formatMismatch("%o", "%O") == nil, "Foundation reads %D, %U and %O like %d, %u and %o")
+        expect(formatMismatch("%@", "%@ %n") != nil && formatMismatch("%@", "%@ %P") != nil, "%n and %P read an argument")
+        expect(formatMismatch("%lld %@", "%'lld %@") != nil, "Foundation prints %' as text, so the %@ after it would read the number")
         let report = check(fixture([Source(path: "Settings.swift", text: "", extracted: [Extracted(key: "%@ 탭", line: 4, column: 9, comment: "Tab label")])], tables: ["ja": "\"%@ 탭\" = \"%lld タブ\";\n"]))
         expect(found(report.diagnostics) == ["E6 Resources/ja.lproj/Localizable.strings:1:1"], "\(found(report.diagnostics))")
     }
