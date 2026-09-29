@@ -183,6 +183,8 @@ func particle(after text: String) -> String? {
     return nil
 }
 
+// The bundle finds a key only under its exact scalars, but String's == takes an NFD 활성화 for the NFC one.
+struct Key: Hashable { let scalars: [Unicode.Scalar]; init(_ text: String) { scalars = Array(text.unicodeScalars) } }
 struct TableEntry: Equatable { let key: String, value: String, line: Int, column: Int }
 enum TableLine { case blank, comment, entry(key: String, value: String, column: Int), invalid(column: Int, message: String) }
 func tableLine(_ line: String) -> TableLine {
@@ -218,7 +220,7 @@ func tableLine(_ line: String) -> TableLine {
 func parseTable(path: String, data: Data) -> (entries: [TableEntry], diagnostics: [Diagnostic]) {
     func at(_ rule: String, _ line: Int, _ column: Int, _ message: String) -> Diagnostic { Diagnostic(rule: rule, file: path, line: line, column: column, message: message) }
     guard var text = String(data: data, encoding: .utf8) else { return ([], [at("E2", 1, 1, "the table is not UTF-8; check it with plutil -lint \(path)")]) }
-    var entries: [TableEntry] = [], diagnostics: [Diagnostic] = [], seen: [String: Int] = [:]
+    var entries: [TableEntry] = [], diagnostics: [Diagnostic] = [], seen: [Key: Int] = [:]
     do {
         guard try PropertyListSerialization.propertyList(from: data, format: nil) is [String: String] else { throw CocoaError(.propertyListReadCorrupt) }
     } catch {
@@ -231,10 +233,10 @@ func parseTable(path: String, data: Data) -> (entries: [TableEntry], diagnostics
         case .blank, .comment: continue
         case let .invalid(column, message): diagnostics.append(at("E3", index + 1, column, message))
         case let .entry(key, value, column):
-            if let first = seen[key] {
+            if let first = seen[Key(key)] {
                 diagnostics.append(at("E4", index + 1, column, "duplicate key \"\(escaped(key))\" (first on line \(first)); the bundle would silently keep only the last one")); continue
             }
-            seen[key] = index + 1
+            seen[Key(key)] = index + 1
             if value.isEmpty { diagnostics.append(at("E5", index + 1, column, "empty translation for \"\(escaped(key))\"")) }
             entries.append(TableEntry(key: key, value: value, line: index + 1, column: column))
         }
@@ -266,7 +268,7 @@ struct StringsData: Decodable {
 }
 
 func check(_ project: Project) -> Report {
-    var diagnostics: [Diagnostic] = [], keys: [String] = [], uses: [String: [(file: String, entry: Extracted)]] = [:], unwrapped = 0
+    var diagnostics: [Diagnostic] = [], keys: [Key] = [], uses: [Key: [(file: String, entry: Extracted)]] = [:], unwrapped = 0
     for source in project.sources {
         var found: [Diagnostic] = []
         func at(_ rule: String, _ line: Int, _ column: Int, _ message: String) { found.append(Diagnostic(rule: rule, file: source.path, line: line, column: column, message: message)) }
@@ -279,11 +281,12 @@ func check(_ project: Project) -> Report {
             if source.isTest { at("W11", entry.line, entry.column, "tests compare with the Korean source text; String(localized:) here adds a key that needs translating"); continue }
             if entry.table != "Localizable" { at("W8", entry.line, entry.column, "String(localized:) uses the table \(entry.table); only Localizable is translated, so this text stays Korean"); continue }
             // Every use of a key shares one translation, which cannot match two different sets of specifiers.
-            if let first = uses[entry.key]?.first, let mismatch = formatMismatch(first.entry.text, entry.text, as: ("at \(first.file):\(first.entry.line)", "here")) {
+            let key = Key(entry.key)
+            if let first = uses[key]?.first, let mismatch = formatMismatch(first.entry.text, entry.text, as: ("at \(first.file):\(first.entry.line)", "here")) {
                 at("E6", entry.line, entry.column, "format specifiers differ between the uses of \"\(escaped(entry.key))\": \(mismatch); no single translation can match both")
             }
-            if uses[entry.key] == nil { keys.append(entry.key) }
-            uses[entry.key, default: []].append((source.path, entry))
+            if uses[key] == nil { keys.append(key) }
+            uses[key, default: []].append((source.path, entry))
             if entry.comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, entry.text.count <= 6 || !specifiers(entry.text).isEmpty {
                 at("W4", entry.line, entry.column, "\"\(escaped(entry.text))\" needs a comment: naming the UI element and what each placeholder holds")
             }
@@ -314,16 +317,16 @@ func check(_ project: Project) -> Report {
         let (entries, tableDiagnostics) = parseTable(path: path, data: data)
         diagnostics += tableDiagnostics
         guard String(data: data, encoding: .utf8) != nil else { counts.append("\(language) unreadable"); continue }
-        let present = Set(entries.map(\.key)), absent = keys.filter { !present.contains($0) }
+        let present = Set(entries.map { Key($0.key) }), absent = keys.filter { !present.contains($0) }
         for key in absent {
             let use = uses[key]![0]
             diagnostics.append(Diagnostic(rule: "W1", file: use.file, line: use.entry.line, column: use.entry.column,
-                message: "\(language): missing translation \"\(escaped(key))\", shown in Korean; check-localization --missing \(language) prints the entries to add"))
+                message: "\(language): missing translation \"\(escaped(use.entry.key))\", shown in Korean; check-localization --missing \(language) prints the entries to add"))
         }
         var stale = 0
         for entry in entries {
             func at(_ rule: String, _ message: String) { diagnostics.append(Diagnostic(rule: rule, file: path, line: entry.line, column: entry.column, message: message)) }
-            let texts = (uses[entry.key] ?? []).map { $0.entry.text }
+            let texts = (uses[Key(entry.key)] ?? []).map { $0.entry.text }
             if texts.isEmpty { stale += 1; at("W2", "\(language): stale translation \"\(escaped(entry.key))\" is no longer used in code") }
             if hasHangul(entry.value) { at("W3", "\(language): the translation of \"\(escaped(entry.key))\" contains Korean text") }
             // Nothing looks up a stale entry, so it has no text to compare; W2 reports it without stopping the build.
@@ -373,12 +376,14 @@ func checkPlist(_ project: Project) -> (listed: [String], diagnostics: [Diagnost
 // One "/* file:line comment */" line and one "key" = "key"; line per entry. The Korean value keeps the table valid, and W3
 // keeps flagging it until someone translates it.
 func missingEntries(sources: [Source], table: [TableEntry]) -> String {
-    let present = Set(table.map(\.key))
-    var order: [String] = [], uses: [String: [(file: String, entry: Extracted)]] = [:]
+    let present = Set(table.map { Key($0.key) })
+    var order: [Key] = [], uses: [Key: [(file: String, entry: Extracted)]] = [:]
     for source in sources.sorted(by: { $0.path < $1.path }) where !source.isTest {
-        for entry in (source.extracted ?? []).sorted(by: { ($0.line, $0.column) < ($1.line, $1.column) }) where entry.table == "Localizable" && !present.contains(entry.key) {
-            if uses[entry.key] == nil { order.append(entry.key) }
-            uses[entry.key, default: []].append((source.path, entry))
+        for entry in (source.extracted ?? []).sorted(by: { ($0.line, $0.column) < ($1.line, $1.column) }) where entry.table == "Localizable" {
+            let key = Key(entry.key)
+            guard !present.contains(key) else { continue }
+            if uses[key] == nil { order.append(key) }
+            uses[key, default: []].append((source.path, entry))
         }
     }
     var output = "", group = ""
@@ -387,7 +392,7 @@ func missingEntries(sources: [Source], table: [TableEntry]) -> String {
         if !output.isEmpty && sites[0].file != group { output += "\n" }
         group = sites[0].file
         let note = ([sites.map { "\($0.file):\($0.entry.line)" }.joined(separator: ", ")] + (comment.isEmpty ? [] : [comment])).joined(separator: " ")
-        output += "/* \(note.replacingOccurrences(of: "*/", with: "* /").replacingOccurrences(of: "\n", with: " ")) */\n\"\(escaped(key))\" = \"\(escaped(sites[0].entry.text))\";\n"
+        output += "/* \(note.replacingOccurrences(of: "*/", with: "* /").replacingOccurrences(of: "\n", with: " ")) */\n\"\(escaped(sites[0].entry.key))\" = \"\(escaped(sites[0].entry.text))\";\n"
     }
     return output
 }
@@ -499,6 +504,8 @@ func selfTest() -> Bool {
         project.plist = plist(languages ?? ["ko"] + tables.keys.sorted())
         return project
     }
+    // Two spellings of 활성화 that String's == calls equal and the bundle tells apart.
+    let nfc = "활성화".precomposedStringWithCanonicalMapping, nfd = nfc.decomposedStringWithCanonicalMapping
 
     section("lexer skips comments and nested comments, and reads escapes, \"#\", raw, multi-line and URL literals and nested interpolations") {
         let lexed = lex(##"""
@@ -610,7 +617,7 @@ func selfTest() -> Bool {
         expect(shared(["값 %@", "값: %@"]).diagnostics.isEmpty, "uses with the same specifiers share a translation")
     }
 
-    section("tables: parse errors, one entry per line, duplicates, empty values, escapes and Hangul") {
+    section("tables: parse errors, one entry per line, duplicates by exact scalars, empty values, escapes and Hangul") {
         func table(_ text: String) -> (entries: [TableEntry], diagnostics: [Diagnostic]) { parseTable(path: "t.strings", data: Data(text.utf8)) }
         expect(table("/* main.swift:1 Menu item */\n\"a\" = \"b\";\n\n").diagnostics.isEmpty, "comments, entries and blank lines are valid")
         let semicolon = found(table("\"a\" = \"b\"\n\"c\" = \"d\";\n").diagnostics)
@@ -618,6 +625,8 @@ func selfTest() -> Bool {
         expect(found(table("\"a\" = \"b\"; \"c\" = \"d\";\n").diagnostics) == ["E3 t.strings:1:12"], "two entries on one line")
         expect(table("\"a\" = \"b\"; /* note */\n").diagnostics.map(\.message) == ["unexpected text after the entry"], "a comment after an entry")
         expect(found(table("\"a\" = \"b\";\n\"a\" = \"c\";\n").diagnostics) == ["E4 t.strings:2:1"], "a duplicate key")
+        let spellings = table("\"\(nfc)\" = \"a\";\n\"\(nfd)\" = \"b\";\n")
+        expect(spellings.diagnostics.isEmpty && spellings.entries.count == 2, "the bundle keeps NFC and NFD spellings as two keys: \(found(spellings.diagnostics))")
         expect(found(table("\"a\" = \"\";\n").diagnostics) == ["E5 t.strings:1:1"], "an empty value")
         expect(found(parseTable(path: "t.strings", data: Data([0x22, 0xE9, 0x22])).diagnostics) == ["E2 t.strings:1:1"], "a table that is not UTF-8")
         let decoded = table("\"줄\\n바꿈\" = \"改\\n行\";\n").entries
@@ -626,7 +635,7 @@ func selfTest() -> Bool {
         expect(found(report.diagnostics) == ["W3 Resources/ja.lproj/Localizable.strings:1:1"], "an escaped key matches its code key, and a Hangul value warns: \(found(report.diagnostics))")
     }
 
-    section("keys: missing, stale, other tables, comments and particles after placeholders") {
+    section("keys: missing and stale by exact scalars, other tables, comments and particles after placeholders") {
         let keys = [("새 기능", "Button that opens the new feature"), ("종료", ""), ("%@ 탭", ""), ("%@은", "c"), ("%@를", "c"), ("%@와", "c"), ("%@로", "c"),
             ("%@에", "c"), ("%@입니다", "c"), ("%@ 키는", "c"), ("주석 없이도 괜찮은 긴 문장", "")]
         var extracted = keys.enumerated().map { Extracted(key: $1.0, line: $0 + 1, column: 5, comment: $1.1) }
@@ -640,6 +649,9 @@ func selfTest() -> Bool {
         expect(lines("W6") == [4, 5, 6, 7], "particles: \(lines("W6"))")
         expect(report.diagnostics.first(where: { $0.rule == "W1" })?.message.contains("--missing ja") == true, "a missing translation must point to --missing")
         expect(report.summary == "localization: 11 keys; ja 9 missing 1 stale; 0 unwrapped; 0 errors, 17 warnings", report.summary)
+        let spelled = check(fixture([Source(path: "Menu.swift", text: "", extracted: [Extracted(key: nfd, line: 1, column: 5, comment: "Checkbox title")])], tables: ["ja": "\"\(nfc)\" = \"有効\";\n"]))
+        expect(nfd == nfc && nfd.unicodeScalars.count == 8 && found(spelled.diagnostics) == ["W1 Menu.swift:1:5", "W2 Resources/ja.lproj/Localizable.strings:1:1"],
+            "the bundle does not find an NFD key in code under its NFC entry: \(found(spelled.diagnostics))")
     }
 
     section("Info.plist and the lproj folders agree") {
@@ -706,6 +718,8 @@ func selfTest() -> Bool {
         let pasted = parseTable(path: "ja", data: Data((table + output).utf8))
         expect(pasted.diagnostics.isEmpty && Set(pasted.entries.map(\.key)) == ["종료", "줄\n바꿈 \"따옴표\"", "새 기능", "설정"], "the entries must paste into a valid table: \(pasted)")
         expect(missingEntries(sources: sources, table: pasted.entries).isEmpty, "nothing is printed once every key is present")
+        let spelled = missingEntries(sources: [Source(path: "Menu.swift", text: "", extracted: [Extracted(key: nfd, line: 1, column: 5, comment: "Checkbox title")])], table: parseTable(path: "ja", data: Data("\"\(nfc)\" = \"有効\";\n".utf8)).entries)
+        expect(Array(spelled.unicodeScalars) == Array("/* Menu.swift:1 Checkbox title */\n\"\(nfd)\" = \"\(nfd)\";\n".unicodeScalars), "the NFC entry does not stand in for an NFD key: \(spelled)")
     }
     return failures == 0
 }
