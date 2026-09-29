@@ -279,6 +279,6 @@
 /* main.swift:891 Settings window: status line at the bottom, above the tab buttons, while gksdud applies the key mapping to the keyboards again. */
 "키보드 설정을 다시 적용하고 있습니다." = "正在重新套用鍵盤設定。";
 /* main.swift:893 Settings window: status line at the bottom, above the tab buttons, while gksdud is on but none of the keyboards it remaps is connected. */
-"적용할 키보드 연결 대기 중" = "正在等待連接要套用的鍵盤";
+"적용할 키보드 연결 대기 중" = "正在等待目標鍵盤連接";
 /* main.swift:894 Settings window: status line at the bottom, above the tab buttons, when macOS waits for the user to allow the login item. Use Apple's names for System Settings and Login Items. */
 "시스템 설정 → 로그인 항목에서 gksdud를 허용하세요." = "請在「系統設定」>「登入項目」中允許gksdud。";

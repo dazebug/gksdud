@@ -35,7 +35,7 @@
 /* KeyboardSettings.swift:123 Keyboard settings sheet: hint under the default switch while it is On. Every keyboard is remapped unless its own switch is Off. */
 "기본적으로 모든 키보드에 적용됩니다." = "デフォルトですべてのキーボードに適用されます。";
 /* KeyboardSettings.swift:124 Keyboard settings sheet: hint under the default switch while it is Off. Only keyboards whose own switch is On are remapped. Keep On in English: it is the label of that switch segment. */
-"On으로 설정한 키보드에만 적용됩니다." = "Onに設定したキーボードにのみ適用されます。";
+"On으로 설정한 키보드에만 적용됩니다." = "“On”に設定したキーボードにのみ適用されます。";
 /* KeyboardSettings.swift:156 Keyboard settings sheet: accessibility label of a keyboard's Off/Default/On switch. %@ is the keyboard name. */
 "%@ 적용 설정" = "%@の適用設定";
 
