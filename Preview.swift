@@ -64,21 +64,82 @@ struct SystemSnapshot: Equatable {
     }
 }
 
+// The defaults suites of tests, previews and captures. A named suite keeps its plist in ~/Library/Preferences even after
+// removePersistentDomain, so each suite is a plist path in a gksdud- folder in /private/tmp: by default this process's
+// folder, which exit removes.
+final class ScratchDefaults {
+    let path: String, defaults: UserDefaults
+    // Pass a folder of your own for state that must outlive a failed run; exit leaves it alone.
+    init(_ label: String, in folder: URL = ScratchDefaults.folder) {
+        precondition(Self.isScratchFolder(folder), "defaults suites belong in a gksdud- folder in /private/tmp or the temporary directory, not \(folder.path)")
+        try! FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        path = folder.appendingPathComponent("\(label)-\(UUID().uuidString)").path; defaults = Self.open(path)
+    }
+    // A second instance on the same file, as a relaunch reads it.
+    func reopen() -> UserDefaults { Self.open(path) }
+    // removePersistentDomain empties the domain but leaves its file.
+    func close() { defaults.removePersistentDomain(forName: path); try? FileManager.default.removeItem(atPath: path + ".plist") }
+    private static func open(_ path: String) -> UserDefaults { UserDefaults(suiteName: path)! } // build.sh: the only named suite
+
+    // /private/tmp/gksdud-defaults-<pid>-<UUID>, made on first use.
+    static let folder: URL = {
+        removeDeadFolders()
+        let folder = URL(fileURLWithPath: "/private/tmp/gksdud-defaults-\(getpid())-\(UUID().uuidString)", isDirectory: true)
+        try! FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        removeAtExit(folder)
+        return folder
+    }()
+    private static let lock = NSLock()
+    private static var exitFolders: [URL] = []
+    // atexit takes a C function, which cannot capture, so the one hook reads the folders from exitFolders.
+    private static let exitHook: Void = { _ = atexit { ScratchDefaults.removeExitFolders() } }()
+    // Removes the folder when the process exits, also through exit(1) in featureCheck or a catch block and the capture watchdog's exit(2).
+    static func removeAtExit(_ folder: URL) {
+        precondition(isScratchFolder(folder), "only a gksdud- folder in /private/tmp or the temporary directory can be removed at exit, not \(folder.path)")
+        _ = exitHook
+        lock.lock(); exitFolders.append(folder); lock.unlock()
+    }
+    private static func removeExitFolders() {
+        lock.lock(); let folders = exitFolders; exitFolders.removeAll(); lock.unlock()
+        for folder in folders where isScratchFolder(folder) { try? FileManager.default.removeItem(at: folder) }
+    }
+    // A gksdud- folder directly in /private/tmp or the temporary directory, the only kind this ever removes.
+    static func isScratchFolder(_ folder: URL) -> Bool {
+        func resolved(_ path: String) -> String? {
+            guard let real = realpath(path, nil) else { return nil }
+            defer { free(real) }
+            return String(cString: real)
+        }
+        guard folder.lastPathComponent.hasPrefix("gksdud-"), let parent = resolved(folder.deletingLastPathComponent().path) else { return false }
+        return parent == resolved("/private/tmp") || parent == resolved(NSTemporaryDirectory())
+    }
+    // Precondition traps skip atexit, so the first suite of a run removes the defaults folders of processes that no longer exist.
+    // Only the exact name gksdud-defaults-<pid>-<UUID> is matched.
+    static func removeDeadFolders(in directory: String = "/private/tmp") {
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? [] where name.hasPrefix("gksdud-defaults-") {
+            let parts = name.dropFirst("gksdud-defaults-".count).split(separator: "-", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let pid = pid_t(parts[0]), pid > 0, String(pid) == parts[0], UUID(uuidString: parts[1])?.uuidString == parts[1],
+                  kill(pid, 0) == -1, errno == ESRCH else { continue }
+            try? FileManager.default.removeItem(atPath: (directory as NSString).appendingPathComponent(name))
+        }
+    }
+}
+
 // The settings window, keyboard sheet, status menu and main menu on fakes, for tests, the localization walk and screenshots.
 // It never calls applicationDidFinishLaunching, updateMenu (so there is no status item), repair, ensureKeyTap or updates.check,
 // and the fakes record every attempt to change the system instead of making it.
 final class PreviewFixture {
     // The fakes' closures exist before the fixture does, so they share this instead of self.
     final class Recorder { var trusted = true; var violations: [String] = [] }
-    let delegate: AppDelegate, inputs: FakeInputSources, defaults: UserDefaults, recorder: Recorder
+    let delegate: AppDelegate, inputs: FakeInputSources, scratch: ScratchDefaults, defaults: UserDefaults, recorder: Recorder
     let keyboardSettings: KeyboardSettingsController, mainMenu: NSMenu
     // The content sizes the windows are built with, read before any layout. Text resists compression more than a window
     // keeps its size, so content that needs more room grows the window when it is laid out instead of clipping.
     let settingsSize: NSSize, sheetSize: NSSize
-    private let suiteName: String, before = SystemSnapshot(), deniedBefore = SystemAccess.denied.count
+    private let before = SystemSnapshot(), deniedBefore = SystemAccess.denied.count
     init(uiLanguage: String, state: PreviewState = PreviewState(), resolveNames: Bool = false) throws {
         guard let scene = PreviewScene.sources[uiLanguage] else { throw NSError(domain: "preview", code: 1, userInfo: [NSLocalizedDescriptionKey: "No preview scene for \(uiLanguage)"]) }
-        let suiteName = "io.gksdud.preview.\(UUID().uuidString)", defaults = UserDefaults(suiteName: suiteName)!
+        let scratch = ScratchDefaults("preview"), defaults = scratch.defaults
         let recorder = Recorder(), inputs = FakeInputSources(resolveNames ? scene.map(PreviewScene.named) : scene)
         recorder.trusted = state.trusted
         func refuse(_ action: String) -> Error { recorder.violations.append(action); return SystemAccess.Denied(action: action) }
@@ -113,7 +174,7 @@ final class PreviewFixture {
         delegate.refreshStatus()
         if state.longPressFailure, let current = inputs.current { delegate.showLongPressError(delegate.longPressFailureMessage(for: current)) }
         delegate.menuNeedsUpdate(delegate.statusMenu); delegate.menuWillOpen(delegate.statusMenu)
-        self.delegate = delegate; self.inputs = inputs; self.defaults = defaults; self.recorder = recorder; self.suiteName = suiteName
+        self.delegate = delegate; self.inputs = inputs; self.scratch = scratch; self.defaults = defaults; self.recorder = recorder
         self.keyboardSettings = keyboardSettings; mainMenu = delegate.buildMainMenu()
     }
     // What reached, or tried to reach, the live system; empty when the preview left it alone.
@@ -128,6 +189,6 @@ final class PreviewFixture {
     func close() {
         delegate.menuDidClose(delegate.statusMenu)
         keyboardSettings.window.close(); delegate.window.close()
-        defaults.removePersistentDomain(forName: suiteName)
+        scratch.close()
     }
 }

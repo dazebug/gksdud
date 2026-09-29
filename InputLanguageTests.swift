@@ -114,9 +114,8 @@ func runInputLanguageTests() {
 
 // AppDelegate on fake input sources and faked trust. Nothing here may reach the live input sources, Caps Lock, login item or event taps.
 func runInputWiringTests() {
-    let suiteName = "io.gksdud.wiring-test.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suiteName)!
-    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let scratch = ScratchDefaults("wiring-test"), defaults = scratch.defaults
+    defer { scratch.close() }
     let refused = NSError(domain: "wiring-test", code: 1)
     let fake = FakeInputSources([SampleSource.romaji, SampleSource.hiragana, SampleSource.katakana, SampleSource.abc])
     var trusted = false, capsWrites: [Bool] = [], loginWrites: [Bool] = []

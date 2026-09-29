@@ -25,6 +25,7 @@ func runLocalizationTests() {
 func runScreenshotTests() {
     let scratch = URL(fileURLWithPath: "/private/tmp/gksdud-self-test-\(UUID().uuidString)", isDirectory: true)
     try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+    ScratchDefaults.removeAtExit(scratch)
     defer { try? FileManager.default.removeItem(at: scratch) }
     func failure(_ body: () throws -> Any) -> String { do { _ = try body(); return "" } catch { return error.localizedDescription } }
     // 360 pt at 2x on any display, so the README can show it at half its pixel width.

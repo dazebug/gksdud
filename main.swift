@@ -946,6 +946,7 @@ if CommandLine.arguments.dropFirst().first == "--install-update" {
     // The self-test expects the Korean source text.
     guard AppLanguage.current == "ko" else { fputs("Run --self-test with -AppleLanguages '(ko)' (resolved \(AppLanguage.current)).\n", stderr); exit(1) }
     setbuf(stdout, nil)
+    runScratchDefaultsTests()
     do { try runSettingsReentrancyTests() } catch { fputs("Settings reentrancy tests failed: \(error)\n", stderr); exit(1) }
     do { try runShortcutRestoreTests() } catch { fputs("Shortcut tests failed: \(error)\n", stderr); exit(1) }
     runFeatureTests()
@@ -1039,14 +1040,13 @@ if CommandLine.arguments.dropFirst().first == "--install-update" {
     precondition(gate.handle(code: 90, down: true, repeatKey: false, active: true, target: 90).switchNow)
     precondition(gate.handle(code: 90, down: false, repeatKey: false, active: true, target: 90).consume)
     print("PASS: key-down switch, repeat suppression, release consumption, inactive pass-through, target change")
-    let suiteName = "io.gksdud.inputswitch.defaults-test.\(UUID().uuidString)"
-    let suite = UserDefaults(suiteName: suiteName)!
+    let scratch = ScratchDefaults("defaults-test"), suite = scratch.defaults
     let preferences = Engine(defaults: suite)
     precondition(preferences.testInputText == "한dud한dud한dud한dud") // l10n-ignore: self-test data
     preferences.testInputText = "한영 테스트 ABC" // l10n-ignore: self-test data
-    precondition(Engine(defaults: UserDefaults(suiteName: suiteName)!).testInputText == "한영 테스트 ABC") // l10n-ignore: self-test data
+    precondition(Engine(defaults: scratch.reopen()).testInputText == "한영 테스트 ABC") // l10n-ignore: self-test data
     preferences.testInputText = ""
-    precondition(Engine(defaults: UserDefaults(suiteName: suiteName)!).testInputText.isEmpty, "Empty input must not reset to default")
+    precondition(Engine(defaults: scratch.reopen()).testInputText.isEmpty, "Empty input must not reset to default")
     print("PASS: test input default, edited text persistence, empty text persistence")
     precondition(preferences.active, "First launch defaults to active")
     precondition(preferences.switchOnKeyDown, "Key-down switching defaults to checked")
@@ -1056,7 +1056,7 @@ if CommandLine.arguments.dropFirst().first == "--install-update" {
         for preserveEnabled in [false, true] {
             suite.set(holdEnabled, forKey: "longPressCapsLock")
             suite.set(preserveEnabled, forKey: "preserveCapsLock")
-            let reloaded = Engine(defaults: UserDefaults(suiteName: suiteName)!)
+            let reloaded = Engine(defaults: scratch.reopen())
             precondition(reloaded.longPressCapsLock == holdEnabled, "Hold preference survives restart independently")
             precondition(reloaded.preserveCapsLock == preserveEnabled, "Preservation preference survives restart independently")
             var caps = EnglishCapsState()
@@ -1077,7 +1077,7 @@ if CommandLine.arguments.dropFirst().first == "--install-update" {
     precondition(!preferences.active, "Explicitly disabled preference is preserved")
     suite.set(true, forKey: "active")
     precondition(preferences.active)
-    suite.removePersistentDomain(forName: suiteName)
+    scratch.close()
     let option = sources[1], command = sources[0]
     let existing: [Mapping] = [[srcKey: NSNumber(value: option), dstKey: NSNumber(value: UInt64(0x70000006d))]]
     let first = merged(existing, source: command, previous: nil, original: nil)
@@ -1098,10 +1098,15 @@ if CommandLine.arguments.dropFirst().first == "--install-update" {
     precondition(restored.contains { $0[srcKey]?.uint64Value == command && $0[dstKey]?.uint64Value == 0x7000000e3 })
     print("PASS: unrelated mapping preservation, idempotence, source/target switching, wake recovery, prior mapping restoration")
 } else if CommandLine.arguments.contains("--integration-test") {
-    let suiteName = "io.gksdud.inputswitch.test.\(UUID().uuidString)"
-    let suite = UserDefaults(suiteName: suiteName)!
+    // The suite is the undo state of real shortcut, Input menu and HID changes, so it lives in a folder that exit leaves alone
+    // and goes only after a successful restore.
+    let kept = URL(fileURLWithPath: "/private/tmp/gksdud-integration-\(UUID().uuidString)", isDirectory: true)
+    let scratch = ScratchDefaults("integration-test", in: kept), suite = scratch.defaults
     let engine = Engine(defaults: suite)
-    defer { try? engine.restore(); suite.removePersistentDomain(forName: suiteName) }
+    defer {
+        do { try engine.restore(); scratch.close(); rmdir(kept.path) }
+        catch { fputs("Integration test could not restore: \(error)\nIts undo state stays in \(scratch.path).plist\n", stderr) }
+    }
     do {
         let count = try engine.apply(source: sources[0], target: targets[6])
         guard count > 0 else { throw NSError(domain: "asd", code: 7, userInfo: [NSLocalizedDescriptionKey: "No real keyboard services visible"]) }
@@ -1139,7 +1144,7 @@ if CommandLine.arguments.dropFirst().first == "--install-update" {
         try restarted.prepareForExit()
         precondition(!restarted.active, "Explicitly disabled must stay disabled")
         print("PASS: \(count) real keyboards; recovery, target switch, quit cleanup, active/inactive launch preference, restoration")
-    } catch { fputs("Integration test failed: \(error)\n", stderr); exit(1) }
+    } catch { fputs("Integration test failed: \(error)\nIts undo state stays in \(scratch.path).plist\n", stderr); exit(1) }
 } else {
     let app = NSApplication.shared
     let delegate = AppDelegate()

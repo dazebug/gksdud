@@ -1,9 +1,8 @@
 import AppKit
 
 func runSettingsReentrancyTests() throws {
-    let suite = "io.gksdud.reentrancy-tests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let scratch = ScratchDefaults("reentrancy-tests"), defaults = scratch.defaults
+    defer { scratch.close() }
     defaults.set(false, forKey: "active")
     let original: [String: Any] = ["enabled": true, "value": ["type": "standard", "parameters": [32, 49, 262144]]]
     var keys: [String: Any] = ["60": original]
@@ -61,9 +60,8 @@ func runShortcutRestoreTests() throws {
     func entry(_ code: Int = 80, flags: Int = 0, enabled: Bool = true) -> [String: Any] {
         ["enabled": enabled, "value": ["type": "standard", "parameters": [65535, code, flags]]]
     }
-    let suite = "io.gksdud.shortcut-tests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let scratch = ScratchDefaults("shortcut-tests"), defaults = scratch.defaults
+    defer { scratch.close() }
     let otherEntry = entry(49, flags: 262144)
     var keys: [String: Any] = ["61": otherEntry]
     var failWrite = false, failActivation = false
@@ -170,9 +168,8 @@ final class TestKeyboard: KeyboardDevice {
 func runKeyboardTests() {
     func mapping(_ source: UInt64, _ target: UInt64) -> Mapping { [srcKey: NSNumber(value: source), dstKey: NSNumber(value: target)] }
     let command = sources[0], option = sources[1]
-    let suiteName = "io.gksdud.keyboard-tests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suiteName)!
-    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let scratch = ScratchDefaults("keyboard-tests"), defaults = scratch.defaults
+    defer { scratch.close() }
     let first = TestKeyboard("1", mappings: [mapping(option, targets[5].usage)])
     var devices: [KeyboardDevice] = [first]
     var enumerationFails = false
@@ -300,9 +297,8 @@ func runKeyboardTests() {
     featureCheck(fallback == "4a38e0a533f920f053f8ea29fdf2161cd7e84009e4a223a562b4b5fb1a8ab1ec", "the fallback keyboard key is \(fallback)")
     print("PASS: saved keyboard keys keep the Korean fallback name in every UI language")
     // A device without a product name is stored under the unnamed sentinel, so knownKeyboards is the same in every UI language; only rows and warnings translate it.
-    let namesSuite = "io.gksdud.keyboard-names.\(UUID().uuidString)"
-    let namesDefaults = UserDefaults(suiteName: namesSuite)!
-    defer { namesDefaults.removePersistentDomain(forName: namesSuite) }
+    let namesScratch = ScratchDefaults("keyboard-names"), namesDefaults = namesScratch.defaults
+    defer { namesScratch.close() }
     let unnamed = TestKeyboard("unnamed", name: HIDKeyboardDevice.unnamed, serial: "unnamed"), named = TestKeyboard("named", name: "Magic Keyboard", serial: "named")
     let names = KeyboardManager(defaults: namesDefaults, discover: { [unnamed, named] })
     unnamed.failWrite = true
@@ -318,9 +314,8 @@ func runKeyboardTests() {
 func runRightControlTests() {
     func mapping(_ source: UInt64, _ target: UInt64) -> Mapping { [srcKey: NSNumber(value: source), dstKey: NSNumber(value: target)] }
     let rightControl: UInt64 = 0x7000000e4, leftControl: UInt64 = 0x7000000e0
-    let suite = "io.gksdud.right-control-tests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let scratch = ScratchDefaults("right-control-tests"), defaults = scratch.defaults
+    defer { scratch.close() }
     let original = [mapping(leftControl, 0x7000000e2), mapping(rightControl, 0x7000000e3)]
     let keyboard = TestKeyboard("control", mappings: original)
     let engine = Engine(defaults: defaults, discover: { [keyboard] })
@@ -360,9 +355,8 @@ func runRightControlTests() {
 func renderKeyboardUI(to directory: String) throws {
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)
-    let suiteName = "io.gksdud.ui-preview.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suiteName)!
-    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let scratch = ScratchDefaults("ui-preview"), defaults = scratch.defaults
+    defer { scratch.close() }
     let builtIn = TestKeyboard("preview-1", name: "Apple Internal Keyboard / Trackpad", serial: "builtin")
     let virtual = TestKeyboard("preview-2", name: "Karabiner DriverKit VirtualHIDKeyboard 1.8.0", serial: "virtual")
     let disconnected = TestKeyboard("preview-3", name: "SP109 Wireless Keyboard", serial: "external")

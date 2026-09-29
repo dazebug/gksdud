@@ -10,6 +10,37 @@ func featureCheck(_ condition: @autoclosure () -> Bool, _ message: String = "", 
     }
 }
 
+// Runs first in --self-test and checks where the suite lies before writing to it, because a named suite would leave its plist in ~/Library/Preferences.
+func runScratchDefaultsTests() {
+    let fm = FileManager.default, scratch = ScratchDefaults("scratch-test"), folder = ScratchDefaults.folder.path, file = scratch.path + ".plist"
+    featureCheck((scratch.path as NSString).deletingLastPathComponent == folder && (folder as NSString).deletingLastPathComponent == "/private/tmp"
+        && (folder as NSString).lastPathComponent.hasPrefix("gksdud-defaults-\(getpid())-"), "the suite \(scratch.path) must be in this process's folder in /private/tmp, \(folder)")
+    scratch.defaults.set("value", forKey: "key")
+    featureCheck(fm.fileExists(atPath: file), "a write must create \(file)")
+    featureCheck(scratch.reopen().string(forKey: "key") == "value", "reopen() must read the value back")
+    scratch.close()
+    featureCheck(!fm.fileExists(atPath: file), "close() must delete \(file)")
+    _ = NSApplication.shared
+    NSApp.setActivationPolicy(.prohibited)
+    guard let fixture = try? PreviewFixture(uiLanguage: "ko") else { featureCheck(false, "the ko preview fixture must build"); return }
+    let fixtureFile = fixture.scratch.path + ".plist", written = fm.fileExists(atPath: fixtureFile)
+    fixture.close()
+    featureCheck(written && !fm.fileExists(atPath: fixtureFile), "PreviewFixture.close() must delete its suite file \(fixtureFile) (written: \(written))")
+    let allowed = ["/private/tmp/gksdud-a", "/tmp/gksdud-a", NSTemporaryDirectory() + "gksdud-a"], refused = ["/private/tmp/other", folder + "/gksdud-a", "/Library/gksdud-a"]
+    featureCheck(allowed.allSatisfy { ScratchDefaults.isScratchFolder(URL(fileURLWithPath: $0)) } && !refused.contains { ScratchDefaults.isScratchFolder(URL(fileURLWithPath: $0)) },
+        "only gksdud- folders directly in /private/tmp or the temporary directory may be removed")
+    // A process that has exited and been reaped gives a pid that no longer exists.
+    let child = Process(); child.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+    do { try child.run(); child.waitUntilExit() } catch { featureCheck(false, "/usr/bin/true must run: \(error)") }
+    let sweep = folder + "/sweep", dead = "gksdud-defaults-\(child.processIdentifier)-\(UUID().uuidString)"
+    let kept = ["gksdud-defaults-\(getpid())-\(UUID().uuidString)", "gksdud-defaults-\(child.processIdentifier)-\(UUID().uuidString.lowercased())", "gksdud-self-test-\(UUID().uuidString)"].sorted()
+    for name in [dead] + kept { try? fm.createDirectory(atPath: sweep + "/" + name, withIntermediateDirectories: true) }
+    ScratchDefaults.removeDeadFolders(in: sweep)
+    let left = (try? fm.contentsOfDirectory(atPath: sweep).sorted()) ?? []
+    featureCheck(left == kept, "the sweep must remove only \(dead), leaving \(kept); left \(left)")
+    print("PASS: scratch defaults: suites in this process's /private/tmp folder, written there at once, read back by reopen, deleted by close and PreviewFixture.close; only gksdud- folders in /private/tmp or the temporary directory are removable, and the sweep takes only a dead process's defaults folder")
+}
+
 func runFeatureTests() {
     runSystemAccessTests()
     featureCheck(ReleaseVersion("v1.10.0")! > ReleaseVersion("1.9.9")!)
@@ -29,9 +60,8 @@ func runFeatureTests() {
     featureCheck(!release(nil, draft: true).isNewer(than: "1.2.0"))
     featureCheck(!release(nil, pre: true).isNewer(than: "1.2.0"))
     featureCheck(!release(nil, url: "https://github.com.evil.test/codingnoye/gksdud/releases/tag/v3.0").isNewer(than: "1.2.0"))
-    let suite = "io.gksdud.feature-tests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let scratch = ScratchDefaults("feature-tests"), defaults = scratch.defaults
+    defer { scratch.close() }
     var now = Date(timeIntervalSince1970: 100_000), requests = 0
     var completion: ((Data?, URLResponse?, Error?) -> Void)?
     let checker = UpdateChecker(defaults: defaults, installedVersion: "1.2.0", now: { now }, fetch: { request, done in
@@ -238,7 +268,9 @@ func runOptionInputTests() {
     featureCheck(!warnings.isEmpty)
     featureCheck(InputSources.source(id: "io.gksdud.nonexistent-input-source") == nil, "Unavailable input sources must not crash")
     if let abc = InputSources.source(id: "com.apple.keylayout.ABC"), let identity = InputSources.read(abc)?.identity {
-        let owner = AppDelegate(engine: Engine(defaults: UserDefaults(suiteName: "io.gksdud.layout-read-test")!, discover: { [] }))
+        let layoutRead = ScratchDefaults("layout-read-test")
+        defer { layoutRead.close() }
+        let owner = AppDelegate(engine: Engine(defaults: layoutRead.defaults, discover: { [] }))
         let translate = owner.makeOptionInput().environment.deadState
         for (accent, base): (Int64, Int64) in [(14, 0), (32, 32), (34, 0), (45, 45), (14, 83)] {
             let pending = translate(identity, event(accent, option), 0) ?? 0
@@ -264,9 +296,8 @@ func probeOptionInput() throws {
     guard AXIsProcessTrusted() else { throw NSError(domain: "probe", code: 1, userInfo: [NSLocalizedDescriptionKey: "Native input probe requires accessibility permission."]) }
     let previousApp = NSWorkspace.shared.frontmostApplication
     let savedSource = TISCopyCurrentKeyboardInputSource()!.takeRetainedValue()
-    let suite = "io.gksdud.input-probe.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    let delegate = AppDelegate(engine: Engine(defaults: defaults, discover: { [] }))
+    let scratch = ScratchDefaults("input-probe")
+    let delegate = AppDelegate(engine: Engine(defaults: scratch.defaults, discover: { [] }))
     let panel = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 160), styleMask: [.titled, .closable], backing: .buffered, defer: false)
     panel.title = "gksdud 특수문자 입력 실험"
     let text = NSTextView(frame: NSRect(x: 20, y: 20, width: 480, height: 110))
@@ -281,7 +312,7 @@ func probeOptionInput() throws {
     }
     pump(0.5)
     guard panel.isKeyWindow, NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid() else {
-        panel.orderOut(nil); defaults.removePersistentDomain(forName: suite)
+        panel.orderOut(nil); scratch.close()
         throw NSError(domain: "probe", code: 4, userInfo: [NSLocalizedDescriptionKey: "Unlock the Mac and activate the test window before running the native input probe."])
     }
     var environment = delegate.makeOptionInput().environment
@@ -301,7 +332,7 @@ func probeOptionInput() throws {
         if let monitor { NSEvent.removeMonitor(monitor) }
         _ = TISSelectInputSource(savedSource)
         panel.orderOut(nil); previousApp?.activate(options: [])
-        defaults.removePersistentDomain(forName: suite)
+        scratch.close()
     }
     func enabledSource(_ language: InputLanguage) -> TISInputSource? {
         delegate.environment.inputSources.enabled().first { InputLanguage.match($0.language) == language }.flatMap { InputSources.source(id: $0.id) }
@@ -409,6 +440,7 @@ func runUpdateInstallTests() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("gksdud-installer-test-\(UUID().uuidString)")
     let fm = FileManager.default
     try fm.createDirectory(at: root, withIntermediateDirectories: false)
+    ScratchDefaults.removeAtExit(root)
     defer { try? fm.removeItem(at: root) }
     let installed = root.appendingPathComponent("Installed.app"), candidate = root.appendingPathComponent("Candidate.app")
     func writeBundle(_ url: URL, _ value: String) throws {
@@ -485,9 +517,8 @@ func runUpdateInstallTests() throws {
 }
 
 func runPrereleaseTests() {
-    let suite = "io.gksdud.channel-tests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let scratch = ScratchDefaults("channel-tests"), defaults = scratch.defaults
+    defer { scratch.close() }
     let tag = "pre-v1.3.0"
     let preview = AppRelease(tag_name: tag, html_url: "https://github.com/codingnoye/gksdud/releases/tag/\(tag)", body: nil, draft: false, prerelease: true)
     featureCheck(!preview.isNewer(than: "1.2.0"))
