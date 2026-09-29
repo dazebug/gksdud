@@ -90,6 +90,9 @@ func runScreenshotTests() {
     FileManager.default.createFile(atPath: empty.path, contents: Data())
     let problems = [blank, empty, absent].map { file in failure { try screenshotPixels(file) } }
     featureCheck(problems == ["\(blank.path) is a single uniform colour, as a blank capture is", "\(empty.path) is empty", "\(absent.path) is missing"], "blank, empty and missing screenshots must fail by name: \(problems)")
+    // The menu capture takes a blank frame again while the menu stays open, so a blank capture must be told apart from other failures.
+    let marked = [blank, empty].map { file -> Bool in do { _ = try screenshotPixels(file); return false } catch let failure as CaptureFailure { return failure.blank } catch { return false } }
+    featureCheck(marked == [true, false], "only a uniform screenshot is marked blank: \(marked)")
     // An inactive app or a window that is not key draws its controls grey, and a grown window is not the README's 768 px.
     let built = NSSize(width: 384, height: 636)
     let inactive = captureWindowProblem(active: false, key: true, size: built, built: built), notKey = captureWindowProblem(active: true, key: false, size: built, built: built)

@@ -10,7 +10,9 @@ import AppKit
 
 struct CaptureFailure: LocalizedError {
     let errorDescription: String?
-    init(_ message: String) { errorDescription = message }
+    // A blank frame of a menu still being drawn, or a pointer on the menu, is taken again rather than failing the capture.
+    var blank = false, retryable = false
+    init(_ message: String, blank: Bool = false, retryable: Bool = false) { errorDescription = message; self.blank = blank; self.retryable = retryable }
 }
 
 // Stable names, so the READMEs can show them before they are captured.
@@ -47,6 +49,63 @@ func captureScreenshots(to directory: URL, appearance: NSAppearance.Name) throws
         while Date() < end { if let event = NSApp.nextEvent(matching: .any, until: Date(timeIntervalSinceNow: 0.02), inMode: .default, dequeue: true) { NSApp.sendEvent(event) } }
     }
 
+    // The menu is captured first. It needs no activation, and any click while it tracks closes it, so the one click the settings
+    // window may ask for comes only after the menu is done.
+    // A pop-up menu captured by its window comes out grey, so the menu opens over an opaque backdrop of ours, on the half of the
+    // screen away from the pointer, and the screen rectangle around it is captured if it lies on the backdrop.
+    let backdrop = NSWindow(contentRect: backdropFrame(screen.visibleFrame, pointer: NSEvent.mouseLocation), styleMask: .borderless, backing: .buffered, defer: false)
+    backdrop.backgroundColor = .windowBackgroundColor; backdrop.ignoresMouseEvents = true; backdrop.isReleasedWhenClosed = false
+    backdrop.isRestorable = false; backdrop.animationBehavior = .none
+    backdrop.level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue - 1)
+    backdrop.orderFrontRegardless()
+    defer { backdrop.orderOut(nil) }
+    // A menu opened right after launch was captured before it was drawn, so the app settles first.
+    settle(1)
+    let menu = delegate.statusMenu, content = backdrop.contentView!
+    menu.appearance = NSAppearance(named: appearance)
+    var captured: Result<Void, Error>?
+    // A pointer move, click or key press can close the menu early or highlight a row, so the menu opens up to three times.
+    for opening in 1...3 {
+        var ticks = 0, again = false
+        // popUp tracks the menu until it closes, so the capture runs from a timer in the common modes, which include menu tracking.
+        // A frame taken before the menu is drawn is blank, so it is taken again while the menu stays open.
+        let timer = Timer(timeInterval: 0.4, repeats: true) { timer in
+            ticks += 1
+            guard ticks >= 2 else { return }
+            do {
+                // The backdrop's bounds as the window server has them, in the coordinates of -R.
+                let number = CGWindowID(backdrop.windowNumber)
+                let listed = CGWindowListCopyWindowInfo(.optionIncludingWindow, number) as? [[String: Any]] ?? []
+                guard let placed = listed.first(where: { $0[kCGWindowIsOnscreen as String] as? Bool == true }) else { throw CaptureFailure("the backdrop, window \(number), is not on screen") }
+                let above = CGWindowListCopyWindowInfo(.optionOnScreenAboveWindow, number) as? [[String: Any]] ?? []
+                let rect = try menuCaptureRect(windowsAbove: above, process: getpid(), backdrop: windowBounds(placed))
+                // CGEvent's location has the top-left origin of the window list; the menu itself is the capture area less its margin.
+                let hovering = { menuHoverProblem(highlighted: menu.highlightedItem?.title, pointer: CGEvent(source: nil)?.location, menu: rect.insetBy(dx: 12, dy: 12)) }
+                if let problem = hovering() { throw CaptureFailure(problem, retryable: true) }
+                try screencapture(["-x", "-R\(Int(rect.minX)),\(Int(rect.minY)),\(Int(rect.width)),\(Int(rect.height))"], to: files[3])
+                if let problem = hovering() { throw CaptureFailure(problem, retryable: true) }
+                captured = .success(())
+            } catch let failure as CaptureFailure where failure.blank && ticks < 8 {
+                return
+            } catch let failure as CaptureFailure where failure.blank || failure.retryable {
+                captured = .failure(failure); again = true
+            } catch { captured = .failure(error) }
+            timer.invalidate(); menu.cancelTracking()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        let size = menu.size, opened = Date()
+        _ = menu.popUp(positioning: nil, at: NSPoint(x: (content.bounds.width - size.width) / 2, y: (content.bounds.height + size.height) / 2), in: content)
+        timer.invalidate()
+        if captured == nil || again, opening < 3 {
+            fputs(String(format: "note: the menu closed or was disturbed after %.1f s, as a pointer move, click or key press does; opening it again\n", Date().timeIntervalSince(opened)), stderr)
+            captured = nil; settle(0.5); continue
+        }
+        break
+    }
+    backdrop.orderOut(nil)
+    guard let captured else { throw CaptureFailure("the status menu closed three times before its capture; keep the pointer and the keyboard still until the settings window appears") }
+    try captured.get()
+
     // A window capture includes the title bar; -o leaves out the shadow.
     window.ignoresMouseEvents = true; window.isRestorable = false; window.animationBehavior = .none
     window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
@@ -71,44 +130,6 @@ func captureScreenshots(to directory: URL, appearance: NSAppearance.Name) throws
     }
     window.orderOut(nil)
 
-    // A pop-up menu captured by its window comes out grey, so the menu opens over an opaque backdrop of ours, on the half of the
-    // screen away from the pointer, and the screen rectangle around it is captured if it lies on the backdrop.
-    let backdrop = NSWindow(contentRect: backdropFrame(screen.visibleFrame, pointer: NSEvent.mouseLocation), styleMask: .borderless, backing: .buffered, defer: false)
-    backdrop.backgroundColor = .windowBackgroundColor; backdrop.ignoresMouseEvents = true; backdrop.isReleasedWhenClosed = false
-    backdrop.isRestorable = false; backdrop.animationBehavior = .none
-    backdrop.level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue - 1)
-    backdrop.orderFrontRegardless()
-    defer { backdrop.orderOut(nil) }
-    settle(0.3)
-    let menu = delegate.statusMenu, content = backdrop.contentView!
-    menu.appearance = NSAppearance(named: appearance)
-    var captured: Result<Void, Error>?
-    // popUp tracks the menu until it closes, so the capture runs from a timer in the common modes, which include menu tracking.
-    let timer = Timer(timeInterval: 1, repeats: false) { _ in
-        captured = Result {
-            // The backdrop's bounds as the window server has them, in the coordinates of -R.
-            let number = CGWindowID(backdrop.windowNumber)
-            let listed = CGWindowListCopyWindowInfo(.optionIncludingWindow, number) as? [[String: Any]] ?? []
-            guard let placed = listed.first(where: { $0[kCGWindowIsOnscreen as String] as? Bool == true }) else { throw CaptureFailure("the backdrop, window \(number), is not on screen") }
-            let above = CGWindowListCopyWindowInfo(.optionOnScreenAboveWindow, number) as? [[String: Any]] ?? []
-            let rect = try menuCaptureRect(windowsAbove: above, process: getpid(), backdrop: windowBounds(placed))
-            // CGEvent's location has the top-left origin of the window list; the menu itself is the capture area less its margin.
-            let hovering = { menuHoverProblem(highlighted: menu.highlightedItem?.title, pointer: CGEvent(source: nil)?.location, menu: rect.insetBy(dx: 12, dy: 12)) }
-            if let problem = hovering() { throw CaptureFailure(problem) }
-            try screencapture(["-x", "-R\(Int(rect.minX)),\(Int(rect.minY)),\(Int(rect.width)),\(Int(rect.height))"], to: files[3])
-            if let problem = hovering() { throw CaptureFailure(problem) }
-        }
-        menu.cancelTracking()
-    }
-    RunLoop.main.add(timer, forMode: .common)
-    let size = menu.size, opened = Date()
-    _ = menu.popUp(positioning: nil, at: NSPoint(x: (content.bounds.width - size.width) / 2, y: (content.bounds.height + size.height) / 2), in: content)
-    timer.invalidate(); backdrop.orderOut(nil)
-    guard let captured else {
-        throw CaptureFailure(String(format: "the status menu closed after %.1f s, before its capture at 1 s; a click or key press during the capture closes it", Date().timeIntervalSince(opened)))
-    }
-    try captured.get()
-
     try renderBadgeStrip(primary: delegate.primaryLanguage(), appearance: appearance, to: files[4])
     let untouched = fixture.verifyUntouched()
     guard untouched.isEmpty else { throw CaptureFailure(untouched.joined(separator: "; ")) }
@@ -120,7 +141,9 @@ func screencapture(_ arguments: [String], to file: URL) throws {
     let process = Process(), command = (["screencapture"] + arguments + [file.lastPathComponent]).joined(separator: " ")
     process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture"); process.arguments = arguments + [file.path]
     try CaptureChild.run(process, command: command)
-    do { _ = try screenshotPixels(file) } catch { throw CaptureFailure("\(command) finished, but \(error.localizedDescription)") }
+    do { _ = try screenshotPixels(file) } catch let failure as CaptureFailure {
+        throw CaptureFailure("\(command) finished, but \(failure.localizedDescription)", blank: failure.blank, retryable: failure.retryable)
+    } catch { throw CaptureFailure("\(command) finished, but \(error.localizedDescription)") }
 }
 
 // Every screencapture runs as a recorded child with a deadline. The watchdog's exit(2) runs no cleanup and leaves children running,
@@ -200,7 +223,7 @@ func screenshotPixels(_ file: URL) throws -> (width: Int, height: Int) {
                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue).map { $0.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height)) } != nil
     }
     guard drawn else { throw CaptureFailure("\(file.path) cannot be read as pixels") }
-    guard pixels.contains(where: { $0 != pixels[0] }) else { throw CaptureFailure("\(file.path) is a single uniform colour, as a blank capture is") }
+    guard pixels.contains(where: { $0 != pixels[0] }) else { throw CaptureFailure("\(file.path) is a single uniform colour, as a blank capture is", blank: true) }
     return (image.width, image.height)
 }
 
