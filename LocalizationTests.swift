@@ -161,6 +161,7 @@ func runScreenshotTests() {
 }
 
 // Translated row labels can be wider than the Korean 95 pt column; the rows must then share the widest label's width.
+// The walk's layout check must also see a hint line that wraps.
 func runSettingsLayoutTests() {
     _ = NSApplication.shared
     NSApp.setActivationPolicy(.prohibited)
@@ -175,6 +176,23 @@ func runSettingsLayoutTests() {
     let shared = widths(), needed = labels[2].intrinsicContentSize.width
     featureCheck(Set(shared).count == 1 && shared[0] >= 95 && shared[0] >= needed, "row labels are \(shared) wide; they must share one width of at least 95 pt that fits the \(needed) pt label")
     print("PASS: settings row labels share one width that fits the longest label")
+
+    // A hint grows with its text, so a line that wraps adds a line to the hint instead of clipping it.
+    let hints = descendants(content).compactMap { $0 as? NSTextField }.filter { $0.identifier == .hint }
+    var korean: [String] = []
+    for tab in delegate.tabPanels.indices {
+        delegate.selectTab(tab); content.layoutSubtreeIfNeeded()
+        korean += hints.filter { !$0.isHiddenOrHasHiddenAncestor }.compactMap { layoutProblem($0, in: content, built: fixture.settingsSize, scrolled: false) }
+    }
+    featureCheck(hints.count == 6 && korean.isEmpty, "the \(hints.count) Korean hints must keep each line on one line: \(korean)")
+    // The special characters tab has room below its last hint; three copies of that hint make one line about 1.5 times its width.
+    delegate.selectTab(2)
+    let hint = hints.last!, text = hint.stringValue, line = [text, text, text].joined(separator: " ")
+    func problem(_ value: String) -> String? { hint.stringValue = value; content.layoutSubtreeIfNeeded(); return layoutProblem(hint, in: content, built: fixture.settingsSize, scrolled: false) }
+    let first = problem(line), second = problem(text + "\n" + line)
+    featureCheck(first?.contains("line 1 wraps") == true && second?.contains("line 2 wraps") == true,
+        "a hint line about 1.5 times the \(hint.bounds.width) pt hint must be reported as wrapping: \(first ?? "nil") / \(second ?? "nil")")
+    print("PASS: the Korean hints keep each line on one line, and a hint line that wraps is reported by its number")
 }
 
 // A process resolves one bundle language, so build.sh runs this once per UI language.
@@ -285,7 +303,6 @@ func walkUI(_ language: String) -> UIWalk {
                 collect(item.title, "\(place) item"); collect(item.toolTip, "\(place) item tooltip")
             }
         }
-        func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
         let window = delegate.window!, content = window.contentView!
         collect(window.title, "settings window title")
         // Hidden tab panels keep their constraints, so one check covers every tab.
@@ -319,6 +336,8 @@ func walkUI(_ language: String) -> UIWalk {
     return walk
 }
 
+func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+
 // Text wider or taller than its control, or a control outside the window's built size. Image views scale, so only their position is checked.
 func layoutProblem(_ view: NSView, in content: NSView, built size: NSSize, scrolled: Bool) -> String? {
     let frame = view.alignmentRect(forFrame: view.frame)
@@ -326,8 +345,17 @@ func layoutProblem(_ view: NSView, in content: NSView, built size: NSSize, scrol
     // Editable fields scroll and truncating ones end in an ellipsis. A wrapping label must fit its lines at its width.
     if let field = view as? NSTextField, let cell = field.cell, !field.isEditable, !field.stringValue.isEmpty, ![.byTruncatingHead, .byTruncatingMiddle, .byTruncatingTail].contains(field.lineBreakMode) {
         if cell.wraps {
-            let height = cell.cellSize(forBounds: NSRect(x: 0, y: 0, width: field.bounds.width, height: .greatestFiniteMagnitude)).height
+            func needed(_ cell: NSCell, width: CGFloat) -> NSSize { cell.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: .greatestFiniteMagnitude)) }
+            let height = needed(cell, width: field.bounds.width).height
             if height > field.bounds.height + 1 { return "\(name) needs \(height) pt of height, has \(field.bounds.height) pt" }
+            // A hint grows with its text, so a line that wraps adds a line instead of clipping; each of its lines must fit on one line.
+            if field.identifier == .hint, let copy = cell.copy() as? NSCell {
+                for (index, line) in field.stringValue.components(separatedBy: "\n").enumerated() {
+                    copy.stringValue = line
+                    let single = needed(copy, width: .greatestFiniteMagnitude)
+                    if needed(copy, width: field.bounds.width).height > single.height + 1 { return "\(name) line \(index + 1) wraps: needs \(single.width) pt, has \(field.bounds.width) pt" }
+                }
+            }
         } else if field.intrinsicContentSize.width > frame.width + 1 { return "\(name) needs \(field.intrinsicContentSize.width) pt, has \(frame.width) pt" }
     } else if (view as? NSButton).map({ !$0.title.isEmpty }) ?? (view is NSSegmentedControl), view.intrinsicContentSize.width > frame.width + 1 {
         return "\(name) needs \(view.intrinsicContentSize.width) pt, has \(frame.width) pt"

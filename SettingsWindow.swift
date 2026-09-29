@@ -71,7 +71,7 @@ extension AppDelegate {
             tabs.heightAnchor.constraint(equalToConstant: 42)
         ])
         func hint(_ text: String, in panel: NSStackView, indent: CGFloat = 20) {
-            let label = NSTextField(wrappingLabelWithString: text)
+            let label = NSTextField(wrappingLabelWithString: text); label.identifier = .hint
             label.font = .systemFont(ofSize: 11); label.textColor = .secondaryLabelColor
             label.translatesAutoresizingMaskIntoConstraints = false
             let container = NSView(); container.addSubview(label)
@@ -266,3 +266,6 @@ extension AppDelegate {
             : String(localized: "\(title) 탭", comment: "Settings window: accessibility label of a tab button. %@ is the tab title, such as General or gksdud.")
     }
 }
+
+// Each line of a hint fits on one line in Korean; the localization walk finds hints by this identifier to check the translations' lines.
+extension NSUserInterfaceItemIdentifier { static let hint = NSUserInterfaceItemIdentifier("hint") }
