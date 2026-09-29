@@ -1,9 +1,8 @@
 import AppKit
 
 func runSettingsReentrancyTests() throws {
-    let suite = "io.gksdud.reentrancy-tests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let scratch = ScratchDefaults("reentrancy-tests"), defaults = scratch.defaults
+    defer { scratch.close() }
     defaults.set(false, forKey: "active")
     let original: [String: Any] = ["enabled": true, "value": ["type": "standard", "parameters": [32, 49, 262144]]]
     var keys: [String: Any] = ["60": original]
@@ -61,9 +60,8 @@ func runShortcutRestoreTests() throws {
     func entry(_ code: Int = 80, flags: Int = 0, enabled: Bool = true) -> [String: Any] {
         ["enabled": enabled, "value": ["type": "standard", "parameters": [65535, code, flags]]]
     }
-    let suite = "io.gksdud.shortcut-tests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let scratch = ScratchDefaults("shortcut-tests"), defaults = scratch.defaults
+    defer { scratch.close() }
     let otherEntry = entry(49, flags: 262144)
     var keys: [String: Any] = ["61": otherEntry]
     var failWrite = false, failActivation = false
@@ -170,9 +168,8 @@ final class TestKeyboard: KeyboardDevice {
 func runKeyboardTests() {
     func mapping(_ source: UInt64, _ target: UInt64) -> Mapping { [srcKey: NSNumber(value: source), dstKey: NSNumber(value: target)] }
     let command = sources[0], option = sources[1]
-    let suiteName = "io.gksdud.keyboard-tests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suiteName)!
-    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let scratch = ScratchDefaults("keyboard-tests"), defaults = scratch.defaults
+    defer { scratch.close() }
     let first = TestKeyboard("1", mappings: [mapping(option, targets[5].usage)])
     var devices: [KeyboardDevice] = [first]
     var enumerationFails = false
@@ -295,14 +292,30 @@ func runKeyboardTests() {
     precondition(afterBoot.records.isEmpty && afterBoot.known[conflicting.identity.key]?.mode == .off,
         "Reboot drops connection-specific undo records but preserves keyboard choices")
     print("PASS: keyboard discovery/replacement, default and overrides, persistent disconnected choices, partial failure isolation, warning recovery, verified undo, identity stability")
+    // Saved keyboard keys hash the fallback name 키보드 (parts 0, 0, "", model, 키보드), so no UI language may change it.
+    let fallback = KeyboardIdentity(properties: [:]).key
+    featureCheck(fallback == "4a38e0a533f920f053f8ea29fdf2161cd7e84009e4a223a562b4b5fb1a8ab1ec", "the fallback keyboard key is \(fallback)")
+    print("PASS: saved keyboard keys keep the Korean fallback name in every UI language")
+    // A device without a product name is stored under the unnamed sentinel, so knownKeyboards is the same in every UI language; only rows and warnings translate it.
+    let namesScratch = ScratchDefaults("keyboard-names"), namesDefaults = namesScratch.defaults
+    defer { namesScratch.close() }
+    let unnamed = TestKeyboard("unnamed", name: HIDKeyboardDevice.unnamed, serial: "unnamed"), named = TestKeyboard("named", name: "Magic Keyboard", serial: "named")
+    let names = KeyboardManager(defaults: namesDefaults, discover: { [unnamed, named] })
+    unnamed.failWrite = true
+    for _ in 0..<3 { names.reconcile(source: command, target: f19, active: true) }
+    let stored = (namesDefaults.data(forKey: "knownKeyboards").flatMap { try? JSONDecoder().decode([String: SavedKeyboard].self, from: $0) } ?? [:]).values.map(\.name).sorted()
+    featureCheck(HIDKeyboardDevice.unnamed == "이름 없는 키보드" && stored == ["Magic Keyboard", "이름 없는 키보드"], "knownKeyboards must store the unnamed sentinel, got \(stored)")
+    let shown = [unnamed, named].map { names.known[$0.identity.key]?.displayName ?? "nil" }
+    featureCheck(shown == ["이름 없는 키보드", "Magic Keyboard"], "keyboard rows show \(shown), expected the localized unnamed text and the named keyboard's own name")
+    featureCheck(names.warningDetails == "이름 없는 키보드: \(KeyboardError.write.localizedDescription)", "the keyboard warning details are \(names.warningDetails ?? "nil")")
+    print("PASS: unnamed keyboards keep their stored name and show the localized unnamed text in rows and warnings")
 }
 
 func runRightControlTests() {
     func mapping(_ source: UInt64, _ target: UInt64) -> Mapping { [srcKey: NSNumber(value: source), dstKey: NSNumber(value: target)] }
     let rightControl: UInt64 = 0x7000000e4, leftControl: UInt64 = 0x7000000e0
-    let suite = "io.gksdud.right-control-tests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let scratch = ScratchDefaults("right-control-tests"), defaults = scratch.defaults
+    defer { scratch.close() }
     let original = [mapping(leftControl, 0x7000000e2), mapping(rightControl, 0x7000000e3)]
     let keyboard = TestKeyboard("control", mappings: original)
     let engine = Engine(defaults: defaults, discover: { [keyboard] })
@@ -333,15 +346,17 @@ func runRightControlTests() {
         defaults.set(true, forKey: "active")
     }
     print("PASS: right Control across F13-F20, left Control preservation, source changes, saved selection, restart, disable restoration")
+    // The picker shows sourceKeyTitles[i] for sources[i]; Korean users keep today's titles.
+    featureCheck(sourceKeyTitles == ["우측 Command ⌘", "우측 Option ⌥", "Caps Lock ⇪", "우측 Control ⌃"], "source key titles are \(sourceKeyTitles)")
+    print("PASS: switch key titles line up with the source keys and keep the Korean titles")
 }
 
 // Renders native UI against fake devices; never opens a real HID client or applies system settings.
 func renderKeyboardUI(to directory: String) throws {
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)
-    let suiteName = "io.gksdud.ui-preview.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suiteName)!
-    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let scratch = ScratchDefaults("ui-preview"), defaults = scratch.defaults
+    defer { scratch.close() }
     let builtIn = TestKeyboard("preview-1", name: "Apple Internal Keyboard / Trackpad", serial: "builtin")
     let virtual = TestKeyboard("preview-2", name: "Karabiner DriverKit VirtualHIDKeyboard 1.8.0", serial: "virtual")
     let disconnected = TestKeyboard("preview-3", name: "SP109 Wireless Keyboard", serial: "external")
@@ -412,11 +427,10 @@ func renderKeyboardUI(to directory: String) throws {
     precondition(!delegate.updateSummary.string.contains("요약에 나타나면"))
     delegate.updates = UpdateChecker(defaults: defaults, installedVersion: "9.0.0")
     delegate.refreshUpdates()
-    precondition(delegate.tabButtons[3].accessibilityLabel() == "gksdud 탭" && delegate.updateButton.isHidden && updateEntry.isHidden)
+    precondition(delegate.tabButtons[3].accessibilityLabel() == delegate.tabAccessibilityLabel("gksdud") && delegate.updateButton.isHidden && updateEntry.isHidden)
     defaults.set(false, forKey: "active")
     delegate.resetSelection()
-    for (title, usage): (String, UInt64) in [("우측 Command ⌘", 0x7000000e7), ("우측 Option ⌥", 0x7000000e6),
-                                          ("Caps Lock ⇪", 0x700000039), ("우측 Control ⌃", 0x7000000e4)] {
+    for (title, usage) in zip(sourceKeyTitles, sources) {
         delegate.picker.selectItem(withTitle: title)
         precondition(delegate.picker.sendAction(delegate.picker.action, to: delegate.picker.target))
         precondition(engine.source == usage, "The selected label must save the matching HID key")

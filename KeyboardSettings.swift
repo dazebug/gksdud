@@ -24,7 +24,7 @@ final class KeyboardSettingsController: NSObject, NSTableViewDataSource, NSTable
     private let defaultControl = NSSegmentedControl(labels: ["Off", "On"], trackingMode: .selectOne, target: nil, action: nil)
     private let defaultHint = NSTextField(labelWithString: "")
     private let table = NSTableView()
-    private let emptyLabel = NSTextField(labelWithString: "키보드 없음")
+    private let emptyLabel = NSTextField(labelWithString: String(localized: "키보드 없음", comment: "Keyboard settings sheet: shown in the empty keyboard list."))
     private let modes: [KeyboardMode] = [.off, .default, .on]
     private var keyboards: [SavedKeyboard] = []
     private var lastRows = ""
@@ -34,19 +34,19 @@ final class KeyboardSettingsController: NSObject, NSTableViewDataSource, NSTable
         self.manager = manager; self.changed = changed
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 332), styleMask: [.titled], backing: .buffered, defer: false)
         super.init()
-        window.title = "대상 키보드 설정"
+        window.title = String(localized: "대상 키보드 설정", comment: "Keyboard settings sheet: window title. The sheet chooses the keyboards whose switch key gksdud remaps.")
         window.isReleasedWhenClosed = false
         let content = window.contentView!
-        let title = NSTextField(labelWithString: "대상 키보드 설정")
+        let title = NSTextField(labelWithString: String(localized: "대상 키보드 설정", comment: "Keyboard settings sheet: heading. The sheet chooses the keyboards whose switch key gksdud remaps."))
         title.font = .systemFont(ofSize: 17, weight: .semibold)
-        let defaultTitle = NSTextField(labelWithString: "기본값")
+        let defaultTitle = NSTextField(labelWithString: String(localized: "기본값", comment: "Keyboard settings sheet: label of the Off/On switch that decides whether keyboards without their own choice are remapped."))
         defaultTitle.font = .systemFont(ofSize: 13, weight: .medium)
         defaultHint.font = .systemFont(ofSize: 11)
         defaultHint.textColor = .secondaryLabelColor
         defaultControl.target = self; defaultControl.action = #selector(defaultChanged)
         defaultControl.segmentStyle = .rounded; defaultControl.controlSize = .small
         defaultControl.setWidth(66, forSegment: 0); defaultControl.setWidth(66, forSegment: 1)
-        defaultControl.setAccessibilityLabel("기본값")
+        defaultControl.setAccessibilityLabel(String(localized: "기본값", comment: "Keyboard settings sheet: accessibility label of the Off/On switch that decides whether keyboards without their own choice are remapped."))
         let defaultRow = NSStackView(views: [defaultTitle, NSView(), defaultControl])
         defaultRow.alignment = .centerY
 
@@ -63,7 +63,7 @@ final class KeyboardSettingsController: NSObject, NSTableViewDataSource, NSTable
         table.allowsColumnReordering = false
         table.allowsColumnResizing = false
         table.dataSource = self; table.delegate = self
-        table.setAccessibilityLabel("대상 키보드")
+        table.setAccessibilityLabel(String(localized: "대상 키보드", comment: "Keyboard settings sheet: accessibility label of the list of keyboards gksdud can remap."))
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true
         scroll.borderType = .noBorder
@@ -88,7 +88,7 @@ final class KeyboardSettingsController: NSObject, NSTableViewDataSource, NSTable
             emptyLabel.centerXAnchor.constraint(equalTo: listContent.centerXAnchor),
             emptyLabel.centerYAnchor.constraint(equalTo: listContent.centerYAnchor)
         ])
-        let done = NSButton(title: "완료", target: self, action: #selector(close))
+        let done = NSButton(title: String(localized: "완료", comment: "Keyboard settings sheet: button that closes the sheet."), target: self, action: #selector(close))
         done.bezelStyle = .rounded; done.keyEquivalent = "\r"
         for view in [title, defaultRow, defaultHint, list, done] {
             view.translatesAutoresizingMaskIntoConstraints = false; content.addSubview(view)
@@ -120,8 +120,8 @@ final class KeyboardSettingsController: NSObject, NSTableViewDataSource, NSTable
     func refresh() {
         defaultControl.selectedSegment = manager.defaultEnabled ? 1 : 0
         defaultHint.stringValue = manager.defaultEnabled
-            ? "기본적으로 모든 키보드에 적용됩니다."
-            : "On으로 설정한 키보드에만 적용됩니다."
+            ? String(localized: "기본적으로 모든 키보드에 적용됩니다.", comment: "Keyboard settings sheet: hint under the default switch while it is On. Every keyboard is remapped unless its own switch is Off.")
+            : String(localized: "On으로 설정한 키보드에만 적용됩니다.", comment: "Keyboard settings sheet: hint under the default switch while it is Off. Only keyboards whose own switch is On are remapped. Keep On in English: it is the label of that switch segment.")
         keyboards = manager.keyboards
         for keyboard in keyboards {
             controls[keyboard.key]?.selectedSegment = modes.firstIndex(of: keyboard.mode)!
@@ -140,12 +140,12 @@ final class KeyboardSettingsController: NSObject, NSTableViewDataSource, NSTable
         let connected = manager.connected.contains(keyboard.key)
         let cell = NSTableCellView(frame: NSRect(x: 0, y: 0, width: tableColumn?.width ?? tableView.bounds.width, height: tableView.rowHeight))
         cell.autoresizingMask = [.width]
-        let name = NSTextField(labelWithString: keyboard.name)
+        let name = NSTextField(labelWithString: keyboard.displayName)
         name.font = .systemFont(ofSize: 12)
         name.textColor = connected ? .labelColor : .disabledControlTextColor
         name.lineBreakMode = .byTruncatingTail
         name.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        name.toolTip = keyboard.name
+        name.toolTip = keyboard.displayName
         cell.textField = name
         let control = KeyboardModeControl(labels: ["Off", "Default", "On"], trackingMode: .selectOne, target: self, action: #selector(modeChanged(_:)))
         control.keyboardKey = keyboard.key
@@ -153,7 +153,7 @@ final class KeyboardSettingsController: NSObject, NSTableViewDataSource, NSTable
         control.segmentStyle = .rounded; control.controlSize = .small
         control.selectedSegment = modes.firstIndex(of: keyboard.mode)!
         control.setWidth(36, forSegment: 0); control.setWidth(60, forSegment: 1); control.setWidth(36, forSegment: 2)
-        control.setAccessibilityLabel("\(keyboard.name) 적용 설정")
+        control.setAccessibilityLabel(String(localized: "\(keyboard.displayName) 적용 설정", comment: "Keyboard settings sheet: accessibility label of a keyboard's Off/Default/On switch. %@ is the keyboard name."))
         // NSTableView owns the cell frame. Autoresize its contents with that frame so
         // each row uses the full column width, independent of the name's intrinsic size.
         control.sizeToFit()

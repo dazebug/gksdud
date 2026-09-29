@@ -5,11 +5,6 @@ import Carbon
 // an explicitly enabled, bounded Option-character transaction; it is never persisted.
 enum SpecialCharacterMode: Int { case none, english, block }
 
-struct InputSourceIdentity: Equatable {
-    let id: String
-    let language: String
-}
-
 struct OptionKeyPolicy {
     static let printable: Set<Int64> = Set(0...50).subtracting([36, 48])
         .union([65, 67, 69, 75, 78, 81, 82, 83, 84, 85, 86, 87, 88, 89, 91, 92, 93, 94, 95])
@@ -74,7 +69,7 @@ final class OptionInputController {
         if event.type == .keyUp, held.remove(code) != nil { return true }
         if busy {
             guard owner == environment.frontmost() else { cancel(focusChanged: true); return false }
-            if queued.count >= 256 { cancel(); report("특수문자 입력이 지연되어 중단했습니다."); return false }
+            if queued.count >= 256 { cancel(); report(String(localized: "특수문자 입력이 지연되어 중단했습니다.", comment: "Special characters tab: status when too much typing piled up during an Option character round trip, so gksdud stopped it.")); return false }
             // Consecutive Option strokes share this English round trip instead of paying for one each.
             // Waiting text keeps its order; a dead key still gets its own transaction.
             if active, mode == .english, event.type == .keyDown, phase != .restoring, let destination,
@@ -101,7 +96,7 @@ final class OptionInputController {
             return false
         }
         guard event.type == .keyDown else { return false }
-        guard let current = environment.current(), current.language.hasPrefix("ko") else { clearDead(); return false }
+        guard let current = environment.current(), InputLanguage.match(current.language)?.optionCharactersViaEnglish == true else { clearDead(); return false }
         if OptionKeyPolicy.preservesKoreanSymbol(code: code, flags: event.flags) { clearDead(); return false }
         if !pendingDead.isEmpty, pendingOwner != environment.frontmost() || pendingOriginal != current
             || environment.clock() - pendingSince > 30 { clearDead() }
@@ -110,7 +105,7 @@ final class OptionInputController {
         if !option && !continuation { clearDead(); return false }
         guard let english = pendingSource ?? environment.english(), let copy = event.copy(),
               let front = environment.frontmost() else {
-            report("영어 입력 소스를 추가한 뒤 다시 시도해주세요."); clearDead(); return false
+            report(String(localized: "영어 입력 소스를 추가한 뒤 다시 시도해주세요.", comment: "Special characters tab: status when an Option character should be typed as in English but no English input source is enabled.")); clearDead(); return false
         }
         // A dead key has no character to deliver yet. Retain it until the next
         // printable stroke, then replay both in one English transaction. Switching
@@ -132,7 +127,7 @@ final class OptionInputController {
         environment.later(0) { [weak self] in
             guard let self, self.generation == token else { return }
             guard self.owner == self.environment.frontmost() else { self.cancel(focusChanged: true); return }
-            guard self.environment.select(english) else { self.cancel(); self.report("영어로 전환하지 못했습니다."); return }
+            guard self.environment.select(english) else { self.cancel(); self.report(String(localized: "영어로 전환하지 못했습니다.", comment: "Special characters tab: status when gksdud could not select the English input source to type an Option character.")); return }
             self.advance(token)
         }
         return true
@@ -161,7 +156,7 @@ final class OptionInputController {
         }
         if phase == .restoring, environment.current() == original { finish(replayOriginal: false); return }
         guard environment.clock() < deadline else {
-            cancel(); report("입력 소스 전환을 확인하지 못했습니다. 특수문자 모드를 끄고 다시 시도해주세요.")
+            cancel(); report(String(localized: "입력 소스 전환을 확인하지 못했습니다. 특수문자 모드를 끄고 다시 시도해주세요.", comment: "Special characters tab: status when the switch to English or back was not confirmed in time. It suggests turning the special character option off and trying again."))
             return
         }
         environment.later(0.005) { [weak self] in self?.advance(token) }
@@ -176,11 +171,11 @@ final class OptionInputController {
         guard owner == environment.frontmost() else { cancel(focusChanged: true); return }
         guard environment.current() == destination else {
             // A manual source change wins. Do not steal the user's selection.
-            finish(replayOriginal: !posted); report("입력 소스가 바뀌어 특수문자 전환을 중단했습니다."); return
+            finish(replayOriginal: !posted); report(String(localized: "입력 소스가 바뀌어 특수문자 전환을 중단했습니다.", comment: "Special characters tab: status when the user changed the input source during an Option character round trip, so gksdud stopped it.")); return
         }
         phase = .restoring; deadline = environment.clock() + 0.4
         guard let original, environment.select(original) else {
-            finish(replayOriginal: false, discard: true); report("한글로 돌아오지 못해 대기 중인 입력을 취소했습니다. 입력 소스를 확인해주세요."); return
+            finish(replayOriginal: false, discard: true); report(String(localized: "한글로 돌아오지 못해 대기 중인 입력을 취소했습니다. 입력 소스를 확인해주세요.", comment: "Special characters tab: status when gksdud could not switch back to Korean input after an Option character and dropped the waiting input. Say Korean input explicitly: this option works only there.")); return
         }
         advance(token)
     }
@@ -215,7 +210,7 @@ final class OptionInputController {
         let restored = environment.current() == original
         // Never flush waiting Hangul while a failed restore has left English selected.
         finish(replayOriginal: !posted && restored, discard: focusChanged || !restored)
-        if focusChanged { report("입력 창이 바뀌어 대기 중인 특수문자 입력을 취소했습니다.") }
+        if focusChanged { report(String(localized: "입력 창이 바뀌어 대기 중인 특수문자 입력을 취소했습니다.", comment: "Special characters tab: status when the focused window changed during an Option character round trip, so gksdud dropped the waiting input.")) }
     }
 }
 
@@ -230,33 +225,17 @@ extension AppDelegate {
         for button in specialButtons { button.state = button.tag == specialMode.rawValue ? .on : .off }
         specialStatus.stringValue = ""
     }
-    static func sourceIdentity(_ source: TISInputSource) -> InputSourceIdentity? {
-        guard let id = TISGetInputSourceProperty(source, kTISPropertyInputSourceID),
-              let languages = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages) else { return nil }
-        return InputSourceIdentity(id: Unmanaged<CFString>.fromOpaque(id).takeUnretainedValue() as String,
-            language: (Unmanaged<CFArray>.fromOpaque(languages).takeUnretainedValue() as? [String])?.first ?? "")
-    }
-    static func sourceForID(_ id: String) -> TISInputSource? {
-        // macOS may return nil (not an empty array) when this source is unavailable.
-        let list = TISCreateInputSourceList([kTISPropertyInputSourceID as String: id] as CFDictionary, false)?.takeRetainedValue() as? [TISInputSource]
-        return list?.first
-    }
     func makeOptionInput() -> OptionInputController {
-        let controller = OptionInputController(environment: .init(current: {
-            TISCopyCurrentKeyboardInputSource().flatMap { Self.sourceIdentity($0.takeRetainedValue()) }
-        }, english: { [weak self] in
-            if let current = TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue(),
-               let identity = Self.sourceIdentity(current), identity.language.hasPrefix("en") { return identity }
-            return self?.availableSource("en").flatMap(Self.sourceIdentity)
-        }, select: { identity in
-            guard let source = Self.sourceForID(identity.id) else { return false }
-            return TISSelectInputSource(source) == noErr
-        }, frontmost: { NSWorkspace.shared.frontmostApplication?.processIdentifier }, post: { event in
+        let inputSources = environment.inputSources
+        let controller = OptionInputController(environment: .init(current: { inputSources.current()?.identity }, english: {
+            if let layout = InputSources.asciiLayout(), InputLanguage.match(layout.language) == .english { return layout.identity }
+            return inputSources.enabled().first { InputLanguage.match($0.language) == .english }?.identity
+        }, select: { inputSources.select($0.id) }, frontmost: { NSWorkspace.shared.frontmostApplication?.processIdentifier }, post: { event in
             event.post(tap: .cghidEventTap)
         }, later: { delay, action in
             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: action)
         }, clock: { ProcessInfo.processInfo.systemUptime }, deadState: { identity, event, state in
-            guard let source = Self.sourceForID(identity.id), let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else { return nil }
+            guard let source = InputSources.source(id: identity.id), let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else { return nil }
             let data = Unmanaged<CFData>.fromOpaque(raw).takeUnretainedValue()
             let layout = UnsafeRawPointer(CFDataGetBytePtr(data)!).assumingMemoryBound(to: UCKeyboardLayout.self)
             var modifiers: UInt32 = 0

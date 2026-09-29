@@ -26,6 +26,8 @@ struct AppRelease: Codable {
               url.path.hasPrefix("/codingnoye/gksdud/releases/tag/") else { return nil }
         return url
     }
+    // Release notes on GitHub name their summary section in Korean; it is parsed, not shown, so it stays the same in every UI language.
+    static let summaryHeading = "요약" // l10n-ignore: release-notes heading parsed from GitHub
     var versionString: String { tag_name.hasPrefix("v") ? String(tag_name.dropFirst()) : tag_name }
     var archiveName: String { "gksdud-\(versionString)-macos-universal.zip" }
     var eligible: Bool { !draft && !prerelease && pageURL != nil && ReleaseVersion(versionString) != nil }
@@ -47,7 +49,7 @@ struct AppRelease: Codable {
                 let depth = trimmed.prefix(while: { $0 == "#" }).count
                 let heading = String(trimmed.dropFirst(depth)).trimmingCharacters(in: .whitespaces)
                     .trimmingCharacters(in: CharacterSet(charactersIn: "#* "))
-                if !collecting, (depth > 0 || trimmed == "**요약**"), heading == "요약" {
+                if !collecting, (depth > 0 || trimmed == "**\(Self.summaryHeading)**"), heading == Self.summaryHeading {
                     collecting = true; level = depth; continue
                 }
                 if collecting, depth > 0, level == 0 || depth <= level { break }
@@ -55,7 +57,7 @@ struct AppRelease: Codable {
             if collecting { lines.append(line) }
         }
         let result = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        return result.isEmpty ? "이번 버전의 요약은 릴리스 페이지에서 확인할 수 있습니다." : String(result.prefix(4000))
+        return result.isEmpty ? String(localized: "이번 버전의 요약은 릴리스 페이지에서 확인할 수 있습니다.", comment: "About tab: shown in the update summary box when the release notes have no summary section. The release page is on GitHub.") : String(result.prefix(4000))
     }
 }
 
@@ -104,7 +106,7 @@ final class UpdateChecker {
                     self.defaults.set(self.now(), forKey: "updates.lastSuccess")
                     self.defaults.set(self.now().addingTimeInterval(86400), forKey: "updates.nextCheck")
                 } else {
-                    self.error = "업데이트를 확인하지 못했습니다. 잠시 후 다시 시도해주세요."
+                    self.error = String(localized: "업데이트를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.", comment: "About tab: update status when checking for a new version failed.")
                 }
                 self.onChange?()
             }

@@ -10,7 +10,40 @@ func featureCheck(_ condition: @autoclosure () -> Bool, _ message: String = "", 
     }
 }
 
+// Runs first in --self-test and checks where the suite lies before writing to it, because a named suite would leave its plist in ~/Library/Preferences.
+func runScratchDefaultsTests() {
+    let fm = FileManager.default, scratch = ScratchDefaults("scratch-test"), folder = ScratchDefaults.folder.path, file = scratch.path + ".plist"
+    featureCheck((scratch.path as NSString).deletingLastPathComponent == folder && (folder as NSString).deletingLastPathComponent == "/private/tmp"
+        && (folder as NSString).lastPathComponent.hasPrefix("gksdud-defaults-\(getpid())-"), "the suite \(scratch.path) must be in this process's folder in /private/tmp, \(folder)")
+    scratch.defaults.set("value", forKey: "key")
+    featureCheck(fm.fileExists(atPath: file), "a write must create \(file)")
+    featureCheck(scratch.reopen().string(forKey: "key") == "value", "reopen() must read the value back")
+    scratch.close()
+    featureCheck(!fm.fileExists(atPath: file), "close() must delete \(file)")
+    _ = NSApplication.shared
+    NSApp.setActivationPolicy(.prohibited)
+    guard let fixture = try? PreviewFixture(uiLanguage: "ko") else { featureCheck(false, "the ko preview fixture must build"); return }
+    let fixtureFile = fixture.scratch.path + ".plist", written = fm.fileExists(atPath: fixtureFile)
+    fixture.close()
+    featureCheck(written && !fm.fileExists(atPath: fixtureFile), "PreviewFixture.close() must delete its suite file \(fixtureFile) (written: \(written))")
+    let allowed = ["/private/tmp/gksdud-a", "/tmp/gksdud-a", NSTemporaryDirectory() + "gksdud-a"], refused = ["/private/tmp/other", folder + "/gksdud-a", "/Library/gksdud-a"]
+    featureCheck(allowed.allSatisfy { ScratchDefaults.isScratchFolder(URL(fileURLWithPath: $0)) } && !refused.contains { ScratchDefaults.isScratchFolder(URL(fileURLWithPath: $0)) },
+        "only gksdud- folders directly in /private/tmp or the temporary directory may be removed")
+    // A process that has exited and been reaped gives a pid that no longer exists.
+    let child = Process(); child.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+    do { try child.run(); child.waitUntilExit() } catch { featureCheck(false, "/usr/bin/true must run: \(error)") }
+    let sweep = folder + "/sweep", dead = "gksdud-defaults-\(child.processIdentifier)-\(UUID().uuidString)"
+    let kept = ["gksdud-defaults-\(getpid())-\(UUID().uuidString)", "gksdud-defaults-\(child.processIdentifier)-\(UUID().uuidString.lowercased())", "gksdud-self-test-\(UUID().uuidString)"].sorted()
+    for name in [dead] + kept { try? fm.createDirectory(atPath: sweep + "/" + name, withIntermediateDirectories: true) }
+    ScratchDefaults.removeDeadFolders(in: sweep)
+    let left = (try? fm.contentsOfDirectory(atPath: sweep).sorted()) ?? []
+    featureCheck(left == kept, "the sweep must remove only \(dead), leaving \(kept); left \(left)")
+    print("PASS: scratch defaults: suites in this process's /private/tmp folder, written there at once, read back by reopen, deleted by close and PreviewFixture.close; only gksdud- folders in /private/tmp or the temporary directory are removable, and the sweep takes only a dead process's defaults folder")
+}
+
 func runFeatureTests() {
+    runSystemAccessTests()
+    runLaunchModeTests()
     featureCheck(ReleaseVersion("v1.10.0")! > ReleaseVersion("1.9.9")!)
     featureCheck(ReleaseVersion("1.2")! == ReleaseVersion("1.2.0")!)
     for invalid in ["pre-v1.3.0", "1.3.0-beta", "1..2", "1.2x", "", "1.2.99999999999999999999999"] { featureCheck(ReleaseVersion(invalid) == nil) }
@@ -28,9 +61,8 @@ func runFeatureTests() {
     featureCheck(!release(nil, draft: true).isNewer(than: "1.2.0"))
     featureCheck(!release(nil, pre: true).isNewer(than: "1.2.0"))
     featureCheck(!release(nil, url: "https://github.com.evil.test/codingnoye/gksdud/releases/tag/v3.0").isNewer(than: "1.2.0"))
-    let suite = "io.gksdud.feature-tests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let scratch = ScratchDefaults("feature-tests"), defaults = scratch.defaults
+    defer { scratch.close() }
     var now = Date(timeIntervalSince1970: 100_000), requests = 0
     var completion: ((Data?, URLResponse?, Error?) -> Void)?
     let checker = UpdateChecker(defaults: defaults, installedVersion: "1.2.0", now: { now }, fetch: { request, done in
@@ -59,6 +91,69 @@ func runFeatureTests() {
     runOptionInputTests()
     runOptionRepeatTests()
     runNativeOptionSymbolTests()
+}
+
+// Exercises only the latch: calling a guarded system closure here would change the live setup whenever its guard is missing.
+func runSystemAccessTests() {
+    featureCheck(SystemAccess.isLocked, "latch must be locked in --self-test")
+    let recorded = SystemAccess.denied.count
+    featureCheck(!SystemAccess.permits("probe"), "a locked latch must refuse every action")
+    featureCheck(SystemAccess.denied.count == recorded + 1 && SystemAccess.denied.last == "probe", "a refusal must be recorded in denied")
+    do { try SystemAccess.check("probe"); featureCheck(false, "check must throw while locked") }
+    catch { featureCheck((error as? SystemAccess.Denied)?.action == "probe" && error.localizedDescription.contains("probe"), "check must throw SystemAccess.Denied naming the action") }
+    featureCheck(SystemAccess.denied.suffix(2) == ["probe", "probe"], "check must record its refusal too")
+    print("PASS: system access latch locked in --self-test, refusals recorded, check throws SystemAccess.Denied")
+}
+
+// A malformed or conflicting launch must stop at usage, locked, instead of starting the normal app, the live probe or the integration
+// test beside the user's own gksdud. The argument lists of build.sh, CI, CONTRIBUTING, the capture script and the updater must still work.
+func runLaunchModeTests() {
+    func parsed(_ arguments: [String]) -> String { let mode = LaunchMode(arguments: arguments); return "\(arguments) gives \(mode)\(mode.locksSystemAccess ? "" : ", unlocked")" }
+    let rejected = [
+        ["--render-keyboard-ui"], ["--render-keyboard-ui", ""], ["--render-keyboard-ui", "--self-test"], ["--localization-test"], ["--localization-test", "ja", "extra"],
+        ["--self-test", "--probe-option-input"], ["--localization-test", "ja", "--probe-option-input"], ["--capture-screenshots", "/private/tmp/shots", "--probe-option-input"],
+        ["--localization-test", "--probe-option-input", "--strict", "-AppleLanguages", "(--probe-option-input)"], ["--self-test", "-AppleLanguages", "--probe-option-input"],
+        ["--integration-test", "--render-keyboard-ui"], ["--self-test", "--self-test"], ["--self-test", "--install-update"], ["--self-tset"], ["self-test"], ["--"],
+        ["--strict"], ["--self-test", "--settings"], ["--settings", "--settings"], ["--localization-test", "ja", "--strict", "--strict"], ["--self-test", "--appearance", "dark"],
+        ["--capture-screenshots"], ["--capture-screenshots", "--appearance", "dark"], ["--capture-screenshots", "/private/tmp/shots", "--appearance"],
+        ["--capture-screenshots", "/x", "--appearance", "sepia"], ["--capture-screenshots", "/x", "--appearance", "dark", "--appearance", "light"],
+    ]
+    let started = rejected.filter { arguments in
+        let mode = LaunchMode(arguments: arguments)
+        if case .usage = mode, mode.locksSystemAccess { return false }
+        return true
+    }
+    featureCheck(started.isEmpty, "malformed or conflicting arguments must give usage, locked: \(started.map(parsed).joined(separator: "; "))")
+    let shots = "/private/tmp/shots", ui = "/private/tmp/gksdud-ui", update = "/private/tmp/gksdud-update-1"
+    let locked: [([String], LaunchMode)] = [
+        (["--self-test", "-AppleLanguages", "(ko)"], .selfTest), (["--self-test"], .selfTest),
+        (["--localization-test", "ko", "-AppleLanguages", "(en-US)"], .localizationTest(language: "ko", strict: false)),
+        (["--localization-test", "ko", "--strict", "-AppleLanguages", "(en-US)"], .localizationTest(language: "ko", strict: true)),
+        (["--localization-test", "zh-Hant", "-AppleLanguages", "(zh-Hant)"], .localizationTest(language: "zh-Hant", strict: false)),
+        (["--localization-test", "ja", "--strict", "-AppleLanguages", "(ja)"], .localizationTest(language: "ja", strict: true)),
+        (["--capture-screenshots", "/repo/docs/images/ja", "--appearance", "light", "-AppleLanguages", "(ja)"], .captureScreenshots(directory: "/repo/docs/images/ja", dark: false)),
+        (["--capture-screenshots", "/private/tmp/gksdud-captures/ja-dark", "--appearance", "dark", "-AppleLanguages", "(ja)"], .captureScreenshots(directory: "/private/tmp/gksdud-captures/ja-dark", dark: true)),
+        (["--render-keyboard-ui", ui], .renderKeyboardUI(directory: ui)), (["--render-keyboard-ui", ui, "-AppleLanguages", "(ko)"], .renderKeyboardUI(directory: ui)),
+        (["--capture-screenshots", shots, "-AppleLanguages", "(ja)"], .captureScreenshots(directory: shots, dark: false)),
+        (["--capture-screenshots", shots, "--appearance", "dark"], .captureScreenshots(directory: shots, dark: true)),
+        (["-AppleLanguages", "(ja)", "--capture-screenshots", shots, "--appearance", "light"], .captureScreenshots(directory: shots, dark: false)),
+    ]
+    let unlocked: [([String], LaunchMode)] = [
+        ([], .app(showSettings: false)), (["--settings"], .app(showSettings: true)), (["-psn_0_12345"], .app(showSettings: false)), (["-psn_0_12345", "--settings"], .app(showSettings: true)),
+        (["--install-update", update, update + "/expanded/gksdud.app", "1.4.0", "4242"], .installUpdate), (["--probe-option-input"], .probeOptionInput), (["--integration-test"], .integrationTest),
+    ]
+    let misread = locked.filter { LaunchMode(arguments: $0.0) != $0.1 || !$0.1.locksSystemAccess } + unlocked.filter { LaunchMode(arguments: $0.0) != $0.1 || $0.1.locksSystemAccess }
+    featureCheck(misread.isEmpty, "launch arguments misread: \(misread.map { "\(parsed($0.0)), expected \($0.1)" }.joined(separator: "; "))")
+    func reason(_ arguments: [String]) -> String { if case .usage(let reason) = LaunchMode(arguments: arguments) { return reason }; return "" }
+    let named = [(["--self-tset"], "--self-tset"), (["self-test"], "self-test"), (["--render-keyboard-ui"], "--render-keyboard-ui"), (["--self-test", "--probe-option-input"], "--probe-option-input"),
+                 (["--strict"], "--localization-test"), (["--capture-screenshots", shots, "--appearance", "sepia"], "sepia")]
+    featureCheck(named.allSatisfy { reason($0.0).contains($0.1) }, "usage must name what is wrong: \(named.map { reason($0.0) })")
+    print("PASS: launch modes: the arguments of build.sh, CI, CONTRIBUTING and the capture script lock; the app, updater, probe and integration test do not; missing or dash values, unknown, bare, repeated, conflicting and misplaced arguments give usage")
+    // scripts/capture-screenshots.sh reads the marker without running the app. The bare binary that CI's crash diagnosis runs has no Info.plist.
+    guard Bundle.main.bundleURL.pathExtension == "app" else { print("SKIP: GKSDUDLaunchModes marker (bare binary without Info.plist)"); return }
+    let marker = Bundle.main.object(forInfoDictionaryKey: "GKSDUDLaunchModes")
+    featureCheck(marker as? Int == LaunchMode.contract, "Info.plist's GKSDUDLaunchModes is \(marker.map { "\($0)" } ?? "missing"), expected LaunchMode.contract \(LaunchMode.contract)")
+    print("PASS: Info.plist's GKSDUDLaunchModes \(LaunchMode.contract) matches LaunchMode.contract")
 }
 
 func runOptionInputTests() {
@@ -101,6 +196,13 @@ func runOptionInputTests() {
     featureCheck(!controller.handle(event(25, both), mode: .none, active: true))
     featureCheck(!controller.handle(event(25, both), mode: .english, active: false))
     current = english; featureCheck(!controller.handle(event(25, both), mode: .english, active: true))
+    // Japanese never starts a round trip, and Konkani's kok tag is not Korean.
+    for other in [InputSourceIdentity(id: "com.apple.inputmethod.Kotoeri.RomajiTyping.Japanese", language: "ja"), InputSourceIdentity(id: "com.apple.keylayout.Konkani", language: "kok")] {
+        current = other
+        featureCheck(!controller.handle(event(25, both), mode: .english, active: true) && !controller.busy && jobs.isEmpty && transitions.isEmpty && events.isEmpty,
+            "\(other.id) (\(other.language)) must not start an English round trip")
+    }
+    print("PASS: option characters stay Korean-only (Konkani, Japanese)")
     let letterKeys: [Int64] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 31, 32, 34, 35, 37, 38, 40, 45, 46]
     for source in [korean, english] {
         current = source
@@ -216,9 +318,11 @@ func runOptionInputTests() {
     front = 99; controller.cancel(focusChanged: true); drain()
     featureCheck(events.isEmpty && !controller.busy, "Never replay queued text into a different app")
     featureCheck(!warnings.isEmpty)
-    featureCheck(AppDelegate.sourceForID("io.gksdud.nonexistent-input-source") == nil, "Unavailable input sources must not crash")
-    if let abc = AppDelegate.sourceForID("com.apple.keylayout.ABC"), let identity = AppDelegate.sourceIdentity(abc) {
-        let owner = AppDelegate(engine: Engine(defaults: UserDefaults(suiteName: "io.gksdud.layout-read-test")!, discover: { [] }))
+    featureCheck(InputSources.source(id: "io.gksdud.nonexistent-input-source") == nil, "Unavailable input sources must not crash")
+    if let abc = InputSources.source(id: "com.apple.keylayout.ABC"), let identity = InputSources.read(abc)?.identity {
+        let layoutRead = ScratchDefaults("layout-read-test")
+        defer { layoutRead.close() }
+        let owner = AppDelegate(engine: Engine(defaults: layoutRead.defaults, discover: { [] }))
         let translate = owner.makeOptionInput().environment.deadState
         for (accent, base): (Int64, Int64) in [(14, 0), (32, 32), (34, 0), (45, 45), (14, 83)] {
             let pending = translate(identity, event(accent, option), 0) ?? 0
@@ -244,9 +348,8 @@ func probeOptionInput() throws {
     guard AXIsProcessTrusted() else { throw NSError(domain: "probe", code: 1, userInfo: [NSLocalizedDescriptionKey: "Native input probe requires accessibility permission."]) }
     let previousApp = NSWorkspace.shared.frontmostApplication
     let savedSource = TISCopyCurrentKeyboardInputSource()!.takeRetainedValue()
-    let suite = "io.gksdud.input-probe.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    let delegate = AppDelegate(engine: Engine(defaults: defaults, discover: { [] }))
+    let scratch = ScratchDefaults("input-probe")
+    let delegate = AppDelegate(engine: Engine(defaults: scratch.defaults, discover: { [] }))
     let panel = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 160), styleMask: [.titled, .closable], backing: .buffered, defer: false)
     panel.title = "gksdud 특수문자 입력 실험"
     let text = NSTextView(frame: NSRect(x: 20, y: 20, width: 480, height: 110))
@@ -261,7 +364,7 @@ func probeOptionInput() throws {
     }
     pump(0.5)
     guard panel.isKeyWindow, NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid() else {
-        panel.orderOut(nil); defaults.removePersistentDomain(forName: suite)
+        panel.orderOut(nil); scratch.close()
         throw NSError(domain: "probe", code: 4, userInfo: [NSLocalizedDescriptionKey: "Unlock the Mac and activate the test window before running the native input probe."])
     }
     var environment = delegate.makeOptionInput().environment
@@ -281,9 +384,12 @@ func probeOptionInput() throws {
         if let monitor { NSEvent.removeMonitor(monitor) }
         _ = TISSelectInputSource(savedSource)
         panel.orderOut(nil); previousApp?.activate(options: [])
-        defaults.removePersistentDomain(forName: suite)
+        scratch.close()
     }
-    guard let korean = delegate.availableSource("ko") else { throw NSError(domain: "probe", code: 2, userInfo: [NSLocalizedDescriptionKey: "Korean input source is unavailable."]) }
+    func enabledSource(_ language: InputLanguage) -> TISInputSource? {
+        delegate.environment.inputSources.enabled().first { InputLanguage.match($0.language) == language }.flatMap { InputSources.source(id: $0.id) }
+    }
+    guard let korean = enabledSource(.korean) else { throw NSError(domain: "probe", code: 2, userInfo: [NSLocalizedDescriptionKey: "Korean input source is unavailable."]) }
     func key(_ code: CGKeyCode, _ flags: CGEventFlags = []) {
         for down in [true, false] {
             let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)!
@@ -354,7 +460,7 @@ func probeOptionInput() throws {
         if ok { passed += 1 }
         print("PROBE \(ok ? "PASS" : "FAIL"): rapid backticks mode=\(mode), expected=\(expected), actual=\(text.string)")
     }
-    guard let english = delegate.availableSource("en") else { throw NSError(domain: "probe", code: 2, userInfo: [NSLocalizedDescriptionKey: "English input source is unavailable."]) }
+    guard let english = enabledSource(.english) else { throw NSError(domain: "probe", code: 2, userInfo: [NSLocalizedDescriptionKey: "English input source is unavailable."]) }
     let blockCases: [(CGKeyCode, CGEventFlags, Bool)] = [(0, [.maskAlternate], true), (0, [.maskAlternate, .maskShift], true),
         (14, [.maskAlternate], true), (19, [.maskAlternate], false), (50, [.maskAlternate], false), (42, [.maskAlternate], false)]
     for source in [korean, english] {
@@ -364,14 +470,14 @@ func probeOptionInput() throws {
                 controller.cancel(); mode = reference ? .none : .block
                 text.inputContext?.discardMarkedText(); text.string = ""
                 let selected = TISSelectInputSource(source); pump(0.2)
-                guard selected == noErr, environment.current() == AppDelegate.sourceIdentity(source),
+                guard selected == noErr, environment.current() == InputSources.read(source)?.identity,
                       panel.isKeyWindow, NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid() else {
                     throw NSError(domain: "probe", code: 5, userInfo: [NSLocalizedDescriptionKey: "Could not prepare the block-mode input context."])
                 }
                 key(code, reference && letter ? flags.subtracting(.maskAlternate) : flags)
                 pump(0.03); key(49); pump(0.1)
                 if reference { expected = text.string; continue }
-                let ok = !expected.isEmpty && text.string == expected && environment.current() == AppDelegate.sourceIdentity(source)
+                let ok = !expected.isEmpty && text.string == expected && environment.current() == InputSources.read(source)?.identity
                 if ok { passed += 1 }
                 print("PROBE \(ok ? "PASS" : "FAIL"): block key=\(code), source=\(environment.current()?.language ?? "nil"), expected=\(expected), actual=\(text.string)")
             }
@@ -386,6 +492,7 @@ func runUpdateInstallTests() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("gksdud-installer-test-\(UUID().uuidString)")
     let fm = FileManager.default
     try fm.createDirectory(at: root, withIntermediateDirectories: false)
+    ScratchDefaults.removeAtExit(root)
     defer { try? fm.removeItem(at: root) }
     let installed = root.appendingPathComponent("Installed.app"), candidate = root.appendingPathComponent("Candidate.app")
     func writeBundle(_ url: URL, _ value: String) throws {
@@ -462,9 +569,8 @@ func runUpdateInstallTests() throws {
 }
 
 func runPrereleaseTests() {
-    let suite = "io.gksdud.channel-tests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let scratch = ScratchDefaults("channel-tests"), defaults = scratch.defaults
+    defer { scratch.close() }
     let tag = "pre-v1.3.0"
     let preview = AppRelease(tag_name: tag, html_url: "https://github.com/codingnoye/gksdud/releases/tag/\(tag)", body: nil, draft: false, prerelease: true)
     featureCheck(!preview.isNewer(than: "1.2.0"))
