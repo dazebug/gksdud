@@ -97,9 +97,9 @@ func runInputLanguageTests() {
     featureCheck(unnamedMethods == ["Same (example.a)", "Same (example.b)"], "same-named sources without an input method must add their ID: \(unnamedMethods)")
     featureCheck(menu([abc, SampleSource.romaji], current: SampleSource.romaji) == ["ABC", "Romaji ✓"], "several English sources must show their own names")
     let chinese = menu([abc, SampleSource.zhuyin, SampleSource.cantonesePhonetic, SampleSource.simplifiedPinyin, SampleSource.ainu], current: SampleSource.zhuyin)
-    featureCheck(chinese == ["중국어(번체) ✓", "광둥어(번체)", "아이누어", "중국어(간체)", "영어"], "registered languages in registry order, then others by name, then English: \(chinese)")
+    featureCheck(chinese == ["중국어(번체) ✓", AppLanguage.name(of: "yue-Hant"), AppLanguage.name(of: "ain"), AppLanguage.name(of: "zh-Hans"), "영어"], "registered languages in registry order, then others by name, then English: \(chinese)")
     let others = menu([SampleSource.simplifiedPinyin, SampleSource.ainu, InputSource(id: "example.chinese", language: "zh", name: "Example Chinese")], current: nil)
-    featureCheck(others == ["아이누어", "Pinyin – Simplified", "Example Chinese"], "other sources must group by inferred language and script: \(others)")
+    featureCheck(others == [AppLanguage.name(of: "ain"), "Pinyin – Simplified", "Example Chinese"], "other sources must group by inferred language and script: \(others)")
     featureCheck(menu([InputSource(id: "example.untagged", language: "", name: "Example"), abc], current: nil) == ["Example", "영어"], "a source without a language must show its own name")
     featureCheck(menu([twoSet, abc], current: hiragana) == ["한국어", "영어"] && menu([twoSet, abc], current: nil) == ["한국어", "영어"], "a current source that is not listed must check nothing")
     let konkani = menu([SampleSource.konkani, twoSet], current: nil)
@@ -138,7 +138,7 @@ func runInputWiringTests() {
     featureCheck(!delegate.currentIsEnglish, "no current source must not count as English")
     func failure(_ name: String) -> String { "영어 전환을 확인하지 못해 대문자 전환을 취소했습니다. 영어와 \(name) 입력 소스를 최근 입력 소스로 선택해주세요." }
     let untagged = InputSource(id: "example.untagged", language: "", name: "Example")
-    for (source, name) in [(SampleSource.hiragana, "일본어"), (SampleSource.twoSet, "한국어"), (SampleSource.ainu, "아이누어"), (untagged, "Example")] {
+    for (source, name) in [(SampleSource.hiragana, "일본어"), (SampleSource.twoSet, "한국어"), (SampleSource.ainu, AppLanguage.name(of: "ain")), (untagged, "Example")] {
         let message = delegate.longPressFailureMessage(for: source)
         featureCheck(message == failure(name), "long-press failure for \(source.id) is \"\(message)\", expected the name \(name)")
     }
@@ -241,7 +241,7 @@ func runStatusMenuWiringTests() {
     chinese.inputs.enabled += [SampleSource.cantonesePhonetic, SampleSource.simplifiedPinyin, SampleSource.ainu, SampleSource.konkani]
     chinese.delegate.menuNeedsUpdate(chinese.delegate.statusMenu)
     let chineseRows = rows(chinese)
-    featureCheck(titles(chineseRows) == ["Zhuyin – Traditional ✓", "Cangjie – Traditional", "광둥어(번체)", "아이누어", "중국어(간체)", AppLanguage.name(of: "kok"), "영어"], "Chinese rows are \(titles(chineseRows))")
+    featureCheck(titles(chineseRows) == ["Zhuyin – Traditional ✓", "Cangjie – Traditional", AppLanguage.name(of: "yue-Hant"), AppLanguage.name(of: "ain"), AppLanguage.name(of: "zh-Hans"), AppLanguage.name(of: "kok"), "영어"], "Chinese rows are \(titles(chineseRows))")
     let chineseBadges = [badge("注", filled: true, "zh-Hant"), badge("倉", filled: true, "zh-Hant"), badge("粵", filled: true, "yue-Hant"), badge("AIN", filled: false, nil),
         badge("ZH", filled: false, nil), badge("KOK", filled: false, nil), badge("dud", filled: false, "en")]
     featureCheck(chineseRows.map { pixels($0.image) } == chineseBadges && Set(chineseBadges.map { $0 ?? Data() }).count == chineseBadges.count, "rows must show their sources' method glyphs and outlined codes")
