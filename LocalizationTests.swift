@@ -208,8 +208,9 @@ func runLocalizationTest(expected: String, strict: Bool) {
     let resolved = AppLanguage.current, locale = Locale.current
     if resolved != expected { errors.append("resolved \(resolved), expected \(expected)") }
     else if locale.language.languageCode != Locale.Language(identifier: expected).languageCode {
-        // With another language listed before ko, unsupported system languages keep Korean text but get that language's Locale (午後 in dates).
-        errors.append("Locale.current is \(locale.identifier), expected language \(expected); ko must be first in CFBundleLocalizations")
+        // The ko walk runs under en-US. With another language listed before ko, unsupported system languages keep Korean text
+        // but get that language's Locale (午後 in dates); the order does not explain a mismatch in the other walks.
+        errors.append("Locale.current is \(locale.identifier), expected language \(expected)" + (expected == "ko" ? "; ko must be first in CFBundleLocalizations" : ""))
     }
     var detail = "Korean source text", sample: String? = "활성화"
     if expected != "ko" {
