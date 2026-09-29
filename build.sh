@@ -32,6 +32,9 @@ iconutil -c icns "$stage/AppIcon.iconset" -o "$stage/gksdud.app/Contents/Resourc
 swiftc -parse-as-library -module-cache-path "$stage/module-cache" scripts/check-localization.swift -o "$stage/check-localization"
 "$stage/check-localization" --self-test
 bash -n scripts/capture-screenshots.sh
+# A named defaults suite leaves its plist in ~/Library/Preferences, so suites open only in ScratchDefaults' marked line.
+# Inside if, grep finding nothing (status 1) neither trips set -e nor reads as a match through pipefail.
+if grep -nF 'UserDefaults(suiteName:' "${sources[@]}" | grep -vF '// build.sh: the only named suite'; then echo 'Open defaults suites with ScratchDefaults (Preview.swift).' >&2; exit 1; fi
 for arch in arm64 x86_64; do
   # Only the arm64 compile extracts String(localized:) keys; the guarded expansion survives set -u in bash 3.2.
   extract=(); if [[ "$arch" == arm64 ]]; then extract=(-emit-localized-strings -emit-localized-strings-path "$stage/strings"); fi
