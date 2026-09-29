@@ -95,6 +95,27 @@ func runScreenshotTests() {
     let fine = [built, NSSize(width: 385, height: 636.5)].map { captureWindowProblem(active: true, key: true, size: $0, built: built) }
     featureCheck(inactive?.contains("not the active app") == true && notKey?.contains("not the key window") == true && grown?.contains("grew from its built 384.0×636.0 pt to 384.0×638.0 pt") == true && fine == [nil, nil],
         "the settings captures must stop for an inactive app, a window that is not key or content grown more than 1 pt: \(inactive ?? "nil") / \(notKey ?? "nil") / \(grown ?? "nil") / \(fine)")
+
+    // A screencapture child must not outlive the capture and take the screen once the backdrop is gone. Past its deadline it is
+    // stopped and reaped, also when it ignores SIGTERM.
+    for arguments in [["5"], ["-c", "trap '' TERM; exec /bin/sleep 5"]] {
+        let child = Process(), started = Date()
+        child.executableURL = URL(fileURLWithPath: arguments.count == 1 ? "/bin/sleep" : "/bin/sh"); child.arguments = arguments
+        let command = ([child.executableURL!.lastPathComponent] + arguments).joined(separator: " "), stalled = failure { try CaptureChild.run(child, command: command, deadline: 0.3) }
+        let took = Date().timeIntervalSince(started)
+        featureCheck(took < 2 && stalled == "\(command) did not finish within 0.3 s and was stopped" && CaptureChild.running == nil && child.processIdentifier > 1 && kill(child.processIdentifier, 0) == -1 && errno == ESRCH,
+            "a child past its deadline must be stopped, reaped and no longer recorded within 2 s; after \(took) s: \(stalled.isEmpty ? "it finished" : stalled), recorded: \(CaptureChild.running != nil)")
+    }
+    // The watchdog kills the recorded child from its own queue before its exit(2), and no child starts after that.
+    let sleeper = Process(), started = Date()
+    sleeper.executableURL = URL(fileURLWithPath: "/bin/sleep"); sleeper.arguments = ["30"]
+    DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { CaptureChild.terminate() }
+    let killed = failure { try CaptureChild.run(sleeper, command: "sleep 30") }, took = Date().timeIntervalSince(started)
+    let late = Process(); late.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+    let refused = failure { try CaptureChild.run(late, command: "true") }
+    featureCheck(took < 2 && killed.contains("sleep 30") && CaptureChild.running == nil && kill(sleeper.processIdentifier, 0) == -1 && errno == ESRCH && refused.contains("true was not started") && late.processIdentifier == 0,
+        "terminate must end the running child within 2 s and start no other; after \(took) s: \(killed.isEmpty ? "it finished" : killed) / \(refused.isEmpty ? "a later child ran" : refused)")
+    print("PASS: capture children: stopped and reaped at their deadline, also when they ignore SIGTERM; the watchdog's terminate kills the running one and starts no other")
     // What the README screenshots show: trusted, on, key-down switching, long press and preservation on, login off, menu bar on,
     // the first icon style and the default test text, with no update or warning.
     _ = NSApplication.shared

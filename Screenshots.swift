@@ -19,8 +19,8 @@ func captureScreenshots(to directory: URL, appearance: NSAppearance.Name) throws
     NSApplication.shared.setActivationPolicy(.accessory)
     NSApp.finishLaunching()
     NSApp.appearance = NSAppearance(named: appearance)
-    // A hung capture or menu must not leave windows on the user's screen.
-    DispatchQueue.global().asyncAfter(deadline: .now() + 60) { fputs("FAIL: screenshots: still running after 60 s\n", stderr); exit(2) }
+    // A hung capture or menu must not leave windows on the user's screen, nor a screencapture child to capture it once they are gone.
+    DispatchQueue.global().asyncAfter(deadline: .now() + 60) { CaptureChild.terminate(); fputs("FAIL: screenshots: still running after 60 s\n", stderr); exit(2) }
     guard CGPreflightScreenCaptureAccess() else { throw CaptureFailure("Grant Screen Recording to the terminal that runs this command (System Settings → Privacy & Security), then run it again.") }
     // The display with the menu bar starts the global coordinates at 0,0, so the menu's rectangle for -R never goes negative there.
     guard let screen = NSScreen.screens.first else { throw CaptureFailure("there is no display to capture") }
@@ -96,15 +96,57 @@ func captureScreenshots(to directory: URL, appearance: NSAppearance.Name) throws
 
 // The exit status does not tell a blank capture from a real one, so the file is checked as well.
 func screencapture(_ arguments: [String], to file: URL) throws {
-    let process = Process(), output = Pipe()
+    let process = Process(), command = (["screencapture"] + arguments + [file.lastPathComponent]).joined(separator: " ")
     process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture"); process.arguments = arguments + [file.path]
-    process.standardOutput = output; process.standardError = output
-    try process.run()
-    let message = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-    process.waitUntilExit()
-    let command = (["screencapture"] + arguments + [file.lastPathComponent]).joined(separator: " ")
-    guard process.terminationStatus == 0 else { throw CaptureFailure("\(command) exited with status \(process.terminationStatus)\(message.isEmpty ? "" : ": \(message)")") }
+    try CaptureChild.run(process, command: command)
     do { _ = try screenshotPixels(file) } catch { throw CaptureFailure("\(command) finished, but \(error.localizedDescription)") }
+}
+
+// Every screencapture runs as a recorded child with a deadline. The watchdog's exit(2) runs no cleanup and leaves children running,
+// reparented, so a stalled -R capture could take the screen once the backdrop is gone.
+enum CaptureChild {
+    private static let lock = NSLock()
+    private static var child: Process?, stopped = false
+    static var running: Process? { lock.lock(); defer { lock.unlock() }; return child }
+
+    // Throws, naming the command, when the child fails or is killed. One still running at the deadline gets SIGTERM, then SIGKILL a
+    // second later, and has ended before this throws, so the capture's own cleanup follows.
+    static func run(_ process: Process, command: String, deadline: TimeInterval = 15) throws {
+        let output = Pipe()
+        process.standardOutput = output; process.standardError = output
+        lock.lock()
+        // A child started after the watchdog's terminate would outlive its exit.
+        guard !stopped else { lock.unlock(); throw CaptureFailure("\(command) was not started, because the capture is stopping") }
+        do { try process.run() } catch { lock.unlock(); throw error }
+        child = process
+        lock.unlock()
+        defer { lock.lock(); child = nil; lock.unlock() }
+        let end = ProcessInfo.processInfo.systemUptime + deadline
+        while process.isRunning, ProcessInfo.processInfo.systemUptime < end { pump() }
+        if process.isRunning {
+            process.terminate()
+            let grace = ProcessInfo.processInfo.systemUptime + 1
+            while process.isRunning, ProcessInfo.processInfo.systemUptime < grace { pump() }
+            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+            process.waitUntilExit()
+            throw CaptureFailure("\(command) did not finish within \(String(format: "%g", deadline)) s and was stopped")
+        }
+        process.waitUntilExit()
+        // Read once the child has ended, so no read waits past the deadline.
+        let message = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard process.terminationReason == .exit else { throw CaptureFailure("\(command) was ended by signal \(process.terminationStatus)") }
+        guard process.terminationStatus == 0 else { throw CaptureFailure("\(command) exited with status \(process.terminationStatus)\(message.isEmpty ? "" : ": \(message)")") }
+    }
+
+    // The watchdog's first step, from its own queue: SIGKILL the running child, wait briefly for it to end, and let no other start.
+    static func terminate() {
+        lock.lock(); stopped = true; let process = child; lock.unlock()
+        guard let process, process.isRunning else { return }
+        kill(process.processIdentifier, SIGKILL)
+        let end = ProcessInfo.processInfo.systemUptime + 1
+        while process.isRunning, ProcessInfo.processInfo.systemUptime < end { usleep(10_000) }
+    }
+    private static func pump() { RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.01)) }
 }
 
 // A screenshot's pixel size, or why it cannot be one: missing, empty, not an image, or a single colour, as a blank capture is.
