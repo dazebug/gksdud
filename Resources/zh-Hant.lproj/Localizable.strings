@@ -1,284 +1,284 @@
-/* InputLanguage.swift:69 General tab, menu bar icon picker: the character style item, after '<input language glyph> / ' for input languages without a character face of their own. dud is the English face of the gksdud character; keep it in Latin letters. */
+/* InputLanguage.swift General tab, menu bar icon picker: the character style item, after '<input language glyph> / ' for input languages without a character face of their own. dud is the English face of the gksdud character; keep it in Latin letters. */
 "dud 캐릭터" = "dud角色";
 
-/* KeyboardManagement.swift:69 Keyboard warning tooltip (General tab), after the name and a colon: the list of connected keyboards could not be read. */
+/* KeyboardManagement.swift Keyboard warning tooltip (General tab), after the name and a colon: the list of connected keyboards could not be read. */
 "키보드 목록을 확인하지 못했습니다." = "無法取得鍵盤列表。";
-/* KeyboardManagement.swift:70 Keyboard warning tooltip (General tab), after a keyboard name and a colon: that keyboard's key mappings could not be read. */
+/* KeyboardManagement.swift Keyboard warning tooltip (General tab), after a keyboard name and a colon: that keyboard's key mappings could not be read. */
 "키보드 매핑을 읽지 못했습니다." = "無法讀取按鍵對應。";
-/* KeyboardManagement.swift:71 Keyboard warning tooltip (General tab), after a keyboard name and a colon: gksdud could not apply its key mapping to that keyboard. */
+/* KeyboardManagement.swift Keyboard warning tooltip (General tab), after a keyboard name and a colon: gksdud could not apply its key mapping to that keyboard. */
 "키보드 매핑을 적용하지 못했습니다." = "無法套用按鍵對應。";
-/* KeyboardManagement.swift:72 Keyboard warning tooltip (General tab), after a keyboard name and a colon, and the update status in the About tab: reading the key mapping back did not confirm the change. */
+/* KeyboardManagement.swift Keyboard warning tooltip (General tab), after a keyboard name and a colon, and the update status in the About tab: reading the key mapping back did not confirm the change. */
 "키보드 매핑 적용을 확인하지 못했습니다." = "無法確認按鍵對應已套用。";
-/* KeyboardManagement.swift:73 Keyboard warning tooltip (General tab), after a keyboard name and a colon: another key mapping on that keyboard already produces the internal switch key. */
+/* KeyboardManagement.swift Keyboard warning tooltip (General tab), after a keyboard name and a colon: another key mapping on that keyboard already produces the internal switch key. */
 "전환 키가 다른 매핑에서 사용 중입니다." = "內部切換鍵已用於其他按鍵對應。";
-/* KeyboardManagement.swift:82 Keyboard settings sheet and keyboard warning tooltip: name of a keyboard that reports no product name. */
+/* KeyboardManagement.swift Keyboard settings sheet and keyboard warning tooltip: name of a keyboard that reports no product name. */
 "이름 없는 키보드" = "未命名的鍵盤";
-/* KeyboardManagement.swift:157 General tab: orange warning under the enable checkbox, also added to the menu bar icon tooltip, while the list of keyboards keeps failing to load. gksdud retries on its own. */
+/* KeyboardManagement.swift General tab: orange warning under the enable checkbox, also added to the menu bar icon tooltip, while the list of keyboards keeps failing to load. gksdud retries on its own. */
 "키보드 목록을 확인하지 못해 다시 시도하고 있습니다." = "無法取得鍵盤列表，正在重試。";
-/* KeyboardManagement.swift:159 General tab: orange warning under the enable checkbox, also added to the menu bar icon tooltip, while the key mapping keeps failing on some keyboards. gksdud retries on its own. */
+/* KeyboardManagement.swift General tab: orange warning under the enable checkbox, also added to the menu bar icon tooltip, while the key mapping keeps failing on some keyboards. gksdud retries on its own. */
 "일부 키보드에 설정을 적용하지 못해 다시 시도하고 있습니다." = "無法將設定套用到部分鍵盤，正在重試。";
-/* KeyboardManagement.swift:163 Keyboard warning tooltip (General tab), one line per failing keyboard: the first %@ is the keyboard name, the second %@ the reason it failed. Use your language's punctuation between them. */
+/* KeyboardManagement.swift Keyboard warning tooltip (General tab), one line per failing keyboard: the first %@ is the keyboard name, the second %@ the reason it failed. Use your language's punctuation between them. */
 "%@: %@" = "%@：%@";
-/* KeyboardManagement.swift:253 Keyboard warning tooltip (General tab): stands in for a keyboard name, before the colon, when the list of keyboards itself could not be read. */
+/* KeyboardManagement.swift Keyboard warning tooltip (General tab): stands in for a keyboard name, before the colon, when the list of keyboards itself could not be read. */
 "키보드 목록" = "鍵盤列表";
 
-/* KeyboardSettings.swift:27 Keyboard settings sheet: shown in the empty keyboard list. */
+/* KeyboardSettings.swift Keyboard settings sheet: shown in the empty keyboard list. */
 "키보드 없음" = "沒有可顯示的鍵盤";
-/* KeyboardSettings.swift:37, KeyboardSettings.swift:40, SettingsWindow.swift:117 Keyboard settings sheet: window title. The sheet chooses the keyboards whose switch key gksdud remaps. */
+/* KeyboardSettings.swift, KeyboardSettings.swift, SettingsWindow.swift Keyboard settings sheet: window title. The sheet chooses the keyboards whose switch key gksdud remaps. */
 "대상 키보드 설정" = "目標鍵盤設定";
-/* KeyboardSettings.swift:42, KeyboardSettings.swift:49 Keyboard settings sheet: label of the Off/On switch that decides whether keyboards without their own choice are remapped. */
+/* KeyboardSettings.swift, KeyboardSettings.swift Keyboard settings sheet: label of the Off/On switch that decides whether keyboards without their own choice are remapped. */
 "기본값" = "預設值";
-/* KeyboardSettings.swift:66 Keyboard settings sheet: accessibility label of the list of keyboards gksdud can remap. */
+/* KeyboardSettings.swift Keyboard settings sheet: accessibility label of the list of keyboards gksdud can remap. */
 "대상 키보드" = "目標鍵盤";
-/* KeyboardSettings.swift:91 Keyboard settings sheet: button that closes the sheet. */
+/* KeyboardSettings.swift Keyboard settings sheet: button that closes the sheet. */
 "완료" = "完成";
-/* KeyboardSettings.swift:123 Keyboard settings sheet: hint under the default switch while it is On. Every keyboard is remapped unless its own switch is Off. */
+/* KeyboardSettings.swift Keyboard settings sheet: hint under the default switch while it is On. Every keyboard is remapped unless its own switch is Off. */
 "기본적으로 모든 키보드에 적용됩니다." = "預設會套用到所有鍵盤。";
-/* KeyboardSettings.swift:124 Keyboard settings sheet: hint under the default switch while it is Off. Only keyboards whose own switch is On are remapped. Keep On in English: it is the label of that switch segment. */
+/* KeyboardSettings.swift Keyboard settings sheet: hint under the default switch while it is Off. Only keyboards whose own switch is On are remapped. Keep On in English: it is the label of that switch segment. */
 "On으로 설정한 키보드에만 적용됩니다." = "只會套用到設為「On」的鍵盤。";
-/* KeyboardSettings.swift:156 Keyboard settings sheet: accessibility label of a keyboard's Off/Default/On switch. %@ is the keyboard name. */
+/* KeyboardSettings.swift Keyboard settings sheet: accessibility label of a keyboard's Off/Default/On switch. %@ is the keyboard name. */
 "%@ 적용 설정" = "%@的套用設定";
 
-/* SettingsWindow.swift:24 Settings window, at the top on every tab: placeholder of the empty switch test field. The Korean says try switching between Korean and English; translate it as trying the input source switch. */
+/* SettingsWindow.swift Settings window, at the top on every tab: placeholder of the empty switch test field. The Korean says try switching between Korean and English; translate it as trying the input source switch. */
 "한영 전환을 테스트해보세요" = "嘗試切換輸入方式";
-/* SettingsWindow.swift:25 Settings window, at the top on every tab: accessibility label of the text field for trying the input source switch. VoiceOver names the control type after the label, so leave it out. */
+/* SettingsWindow.swift Settings window, at the top on every tab: accessibility label of the text field for trying the input source switch. VoiceOver names the control type after the label, so leave it out. */
 "한영 전환 테스트 입력창" = "輸入方式切換測試";
-/* SettingsWindow.swift:42 Settings window: title of the General tab button. */
+/* SettingsWindow.swift Settings window: title of the General tab button. */
 "일반" = "一般";
-/* SettingsWindow.swift:42 Settings window: title of the tab button for uppercase and lowercase (Caps Lock) settings. */
+/* SettingsWindow.swift Settings window: title of the tab button for uppercase and lowercase (Caps Lock) settings. */
 "대소문자" = "大小寫";
-/* SettingsWindow.swift:43 Settings window: title of the tab button for special characters typed with Option. */
+/* SettingsWindow.swift Settings window: title of the tab button for special characters typed with Option. */
 "특수문자" = "特殊字元";
-/* SettingsWindow.swift:95 General tab: accessibility description of the orange icon before the keyboard warning. */
+/* SettingsWindow.swift General tab: accessibility description of the orange icon before the keyboard warning. */
 "경고" = "警告";
-/* SettingsWindow.swift:107 General tab: two-line hint under the switch-on-key-down checkbox. Switching when the key goes down, not when it is released, is faster and loses fewer typed characters. */
+/* SettingsWindow.swift General tab: two-line hint under the switch-on-key-down checkbox. Switching when the key goes down, not when it is released, is faster and loses fewer typed characters. */
 "버튼을 뗄 때가 아닌 누를 때 전환하도록 해 더 빠르게 전환합니다.\n글자 씹힘도 더 개선됩니다." = "在按下而非放開按鍵時切換，速度更快。\n也更不容易吃字。";
-/* SettingsWindow.swift:112 General tab: label of the switch key picker. The Korean names the key that switches between Korean and English; translate it as the key that switches input sources. */
+/* SettingsWindow.swift General tab: label of the switch key picker. The Korean names the key that switches between Korean and English; translate it as the key that switches input sources. */
 "한영 키" = "切換鍵";
-/* SettingsWindow.swift:115 General tab: label of the internal switch key picker (F13-F20). gksdud turns the switch key into this key and makes it the system's "Select the previous input source" shortcut. */
+/* SettingsWindow.swift General tab: label of the internal switch key picker (F13-F20). gksdud turns the switch key into this key and makes it the system's "Select the previous input source" shortcut. */
 "내부 전환 키" = "內部切換鍵";
-/* SettingsWindow.swift:116 General tab: two-line hint under the internal switch key picker. Quote Apple's own name of the "Select the previous input source" shortcut. The second line asks for a key with no function that no other app uses. */
+/* SettingsWindow.swift General tab: two-line hint under the internal switch key picker. Quote Apple's own name of the "Select the previous input source" shortcut. The second line asks for a key with no function that no other app uses. */
 "시스템의 '이전 입력 소스 선택' 단축키의 값을 변경합니다.\n다른 앱과 겹치지 않는, 기능 없는 키를 골라주세요." = "更改系統的「選擇上一個輸入方式」快速鍵。\n請選擇不與其他App衝突、本身沒有功能的按鍵。";
-/* SettingsWindow.swift:125 General tab: two-line hint under the menu bar checkbox. The gksdud icon replaces the system's input menu, and ⌘-dragging moves it. */
+/* SettingsWindow.swift General tab: two-line hint under the menu bar checkbox. The gksdud icon replaces the system's input menu, and ⌘-dragging moves it. */
 "기존 메뉴바 입력기를 대체합니다.\n⌘+드래그로 위치를 옮길 수 있어요." = "取代系統的輸入法選單。\n按住⌘鍵並拖移即可移動位置。";
-/* SettingsWindow.swift:128 General tab: accessibility label of the menu bar icon style picker, whose items pair an input language badge with an English one. */
+/* SettingsWindow.swift General tab: accessibility label of the menu bar icon style picker, whose items pair an input language badge with an English one. */
 "메뉴바 아이콘 조합" = "選單列圖像組合";
-/* SettingsWindow.swift:133 General tab: label of the menu bar icon style picker and its previews. */
+/* SettingsWindow.swift General tab: label of the menu bar icon style picker and its previews. */
 "메뉴바 아이콘" = "選單列圖像";
-/* SettingsWindow.swift:138 Case tab: hint under the long-press checkbox. A press switches the input source at once; holding the key toggles uppercase and lowercase. */
+/* SettingsWindow.swift Case tab: hint under the long-press checkbox. A press switches the input source at once; holding the key toggles uppercase and lowercase. */
 "누른 즉시 한영 전환, 길게 유지시 대소문자 전환" = "按下立即切換輸入方式，按住則切換大小寫";
-/* SettingsWindow.swift:141 Special characters tab: checkbox. Option characters are typed as in English even in Korean input. It works only for Korean input; say so in translations. */
+/* SettingsWindow.swift Special characters tab: checkbox. Option characters are typed as in English even in Korean input. It works only for Korean input; say so in translations. */
 "영어처럼 특수문자 입력" = "韓文輸入時也像英文一樣輸入特殊字元";
-/* SettingsWindow.swift:142 Special characters tab: checkbox that blocks Option characters, so Option with a letter types the plain letter. It works in every input language. */
+/* SettingsWindow.swift Special characters tab: checkbox that blocks Option characters, so Option with a letter types the plain letter. It works in every input language. */
 "Option 문자 입력 차단" = "阻擋Option鍵字元輸入";
-/* SettingsWindow.swift:146 Special characters tab: hint under the type-like-English checkbox: in Korean input, ⌥8 still types •. Name Korean input explicitly in translations, because the option works only there. */
+/* SettingsWindow.swift Special characters tab: hint under the type-like-English checkbox: in Korean input, ⌥8 still types •. Name Korean input explicitly in translations, because the option works only there. */
 "한글 상태에서도 ⌥8 → • 처럼 입력합니다." = "韓文輸入時也能按⌥8輸入「•」等特殊字元。";
-/* SettingsWindow.swift:147 Special characters tab: hint under the Option block checkbox: ⌥ with a letter types the plain letter. */
+/* SettingsWindow.swift Special characters tab: hint under the Option block checkbox: ⌥ with a letter types the plain letter. */
 "⌥+문자를 일반 문자로 입력합니다." = "按下⌥+字母鍵時，會輸入一般字元。";
-/* SettingsWindow.swift:179 About tab: button that opens the page for sponsoring the developer. */
+/* SettingsWindow.swift About tab: button that opens the page for sponsoring the developer. */
 "후원" = "贊助";
-/* SettingsWindow.swift:224 About tab: update status when the downloaded update cannot restart gksdud because a settings change is still being applied. */
+/* SettingsWindow.swift About tab: update status when the downloaded update cannot restart gksdud because a settings change is still being applied. */
 "설정을 적용하고 있습니다. 잠시 후 다시 시도해주세요." = "正在套用設定。請稍後再試。";
-/* SettingsWindow.swift:257 About tab: update status while checking for a new version. */
+/* SettingsWindow.swift About tab: update status while checking for a new version. */
 "업데이트 확인 중…" = "正在檢查更新項目⋯";
-/* SettingsWindow.swift:260 About tab: update status after a check. %@ is the date and time of the last successful check, formatted for the user's region. */
+/* SettingsWindow.swift About tab: update status after a check. %@ is the date and time of the last successful check, formatted for the user's region. */
 "마지막 확인 %@" = "上一次檢查：%@";
-/* SettingsWindow.swift:265 Settings window: accessibility label of the About tab button while an update is available. %@ is the tab title, gksdud. */
+/* SettingsWindow.swift Settings window: accessibility label of the About tab button while an update is available. %@ is the tab title, gksdud. */
 "%@ 탭, 업데이트 가능" = "%@標籤頁，有可用的更新";
-/* SettingsWindow.swift:266 Settings window: accessibility label of a tab button. %@ is the tab title, such as General or gksdud. */
+/* SettingsWindow.swift Settings window: accessibility label of a tab button. %@ is the tab title, such as General or gksdud. */
 "%@ 탭" = "%@標籤頁";
 
-/* SpecialCharacters.swift:72 Special characters tab: status when too much typing piled up during an Option character round trip, so gksdud stopped it. */
+/* SpecialCharacters.swift Special characters tab: status when too much typing piled up during an Option character round trip, so gksdud stopped it. */
 "특수문자 입력이 지연되어 중단했습니다." = "特殊字元輸入延遲，已停止。";
-/* SpecialCharacters.swift:108 Special characters tab: status when an Option character should be typed as in English but no English input source is enabled. */
+/* SpecialCharacters.swift Special characters tab: status when an Option character should be typed as in English but no English input source is enabled. */
 "영어 입력 소스를 추가한 뒤 다시 시도해주세요." = "請加入英文輸入方式後再試一次。";
-/* SpecialCharacters.swift:130 Special characters tab: status when gksdud could not select the English input source to type an Option character. */
+/* SpecialCharacters.swift Special characters tab: status when gksdud could not select the English input source to type an Option character. */
 "영어로 전환하지 못했습니다." = "無法切換至英文。";
-/* SpecialCharacters.swift:159 Special characters tab: status when the switch to English or back was not confirmed in time. It suggests turning the special character option off and trying again. */
+/* SpecialCharacters.swift Special characters tab: status when the switch to English or back was not confirmed in time. It suggests turning the special character option off and trying again. */
 "입력 소스 전환을 확인하지 못했습니다. 특수문자 모드를 끄고 다시 시도해주세요." = "無法確認輸入方式已切換。請關閉特殊字元模式後再試一次。";
-/* SpecialCharacters.swift:174 Special characters tab: status when the user changed the input source during an Option character round trip, so gksdud stopped it. */
+/* SpecialCharacters.swift Special characters tab: status when the user changed the input source during an Option character round trip, so gksdud stopped it. */
 "입력 소스가 바뀌어 특수문자 전환을 중단했습니다." = "輸入方式已更改，已停止特殊字元輸入。";
-/* SpecialCharacters.swift:178 Special characters tab: status when gksdud could not switch back to Korean input after an Option character and dropped the waiting input. Say Korean input explicitly: this option works only there. */
+/* SpecialCharacters.swift Special characters tab: status when gksdud could not switch back to Korean input after an Option character and dropped the waiting input. Say Korean input explicitly: this option works only there. */
 "한글로 돌아오지 못해 대기 중인 입력을 취소했습니다. 입력 소스를 확인해주세요." = "無法切換回韓文輸入，已取消等待中的輸入。請檢查輸入方式。";
-/* SpecialCharacters.swift:213 Special characters tab: status when the focused window changed during an Option character round trip, so gksdud dropped the waiting input. */
+/* SpecialCharacters.swift Special characters tab: status when the focused window changed during an Option character round trip, so gksdud dropped the waiting input. */
 "입력 창이 바뀌어 대기 중인 특수문자 입력을 취소했습니다." = "使用中的視窗已變更，已取消等待中的特殊字元輸入。";
 
-/* StatusMenu.swift:41 Status menu: item shown while a newer version is available; it opens the About tab. */
+/* StatusMenu.swift Status menu: item shown while a newer version is available; it opens the About tab. */
 "업데이트 가능" = "有可用的更新";
-/* StatusMenu.swift:48, main.swift:418 Status menu: toggles gksdud on and off, like the General tab checkbox of the same name. */
+/* StatusMenu.swift, main.swift Status menu: toggles gksdud on and off, like the General tab checkbox of the same name. */
 "활성화" = "啟用";
-/* StatusMenu.swift:49, main.swift:441 Status menu: toggles switching the input source when the key goes down instead of up, like the General tab checkbox of the same name. */
+/* StatusMenu.swift, main.swift Status menu: toggles switching the input source when the key goes down instead of up, like the General tab checkbox of the same name. */
 "누를 때 전환" = "按下時切換";
-/* StatusMenu.swift:50, main.swift:419 Status menu: toggles opening gksdud at login, like the General tab checkbox of the same name. */
+/* StatusMenu.swift, main.swift Status menu: toggles opening gksdud at login, like the General tab checkbox of the same name. */
 "로그인 시 시작" = "在登入時打開";
-/* StatusMenu.swift:51, main.swift:420 Status menu: toggles the gksdud menu bar icon, like the General tab checkbox of the same name. */
+/* StatusMenu.swift, main.swift Status menu: toggles the gksdud menu bar icon, like the General tab checkbox of the same name. */
 "메뉴바에 표시" = "在選單列中顯示";
-/* StatusMenu.swift:53 Status menu: opens the settings window (⌘,). */
+/* StatusMenu.swift Status menu: opens the settings window (⌘,). */
 "설정.." = "設定⋯";
-/* StatusMenu.swift:56 Status menu: quits gksdud (⌘Q). */
+/* StatusMenu.swift Status menu: quits gksdud (⌘Q). */
 "종료" = "結束";
-/* StatusMenu.swift:91 General tab: accessibility label of a menu bar icon preview next to the icon picker. %@ is an input language name, such as Japanese or English. */
+/* StatusMenu.swift General tab: accessibility label of a menu bar icon preview next to the icon picker. %@ is an input language name, such as Japanese or English. */
 "%@ 아이콘 미리보기" = "%@圖像預覽";
-/* StatusMenu.swift:145 Settings window, at the top on every tab: accessibility label of the input badge next to the test field. %@ is the current input language, such as Japanese. */
+/* StatusMenu.swift Settings window, at the top on every tab: accessibility label of the input badge next to the test field. %@ is the current input language, such as Japanese. */
 "현재 입력: %@" = "目前輸入：%@";
-/* StatusMenu.swift:148 Menu bar icon tooltip. %@ is the language tag of the current input source, such as ko or ja. */
+/* StatusMenu.swift Menu bar icon tooltip. %@ is the language tag of the current input source, such as ko or ja. */
 "gksdud · 현재 입력 소스: %@" = "gksdud · 目前的輸入方式：%@";
-/* StatusMenu.swift:149 Menu bar icon accessibility label. %@ is the current input language, such as Japanese. */
+/* StatusMenu.swift Menu bar icon accessibility label. %@ is the current input language, such as Japanese. */
 "gksdud, 현재 입력 %@" = "gksdud，目前輸入：%@";
-/* StatusMenu.swift:168 Status menu: tooltip of the switch-on-key-down item while accessibility access is granted. */
+/* StatusMenu.swift Status menu: tooltip of the switch-on-key-down item while accessibility access is granted. */
 "키를 누르는 순간 전환합니다." = "在按下按鍵的瞬間切換。";
-/* StatusMenu.swift:169 Status menu: tooltip of the switch-on-key-down item without accessibility access; choosing it opens settings at the button that requests access. */
+/* StatusMenu.swift Status menu: tooltip of the switch-on-key-down item without accessibility access; choosing it opens settings at the button that requests access. */
 "설정을 열어 접근성 권한 허용 버튼을 표시합니다." = "打開設定並顯示允許「輔助使用」取用的按鈕。";
 
-/* UpdateChecking.swift:60 About tab: shown in the update summary box when the release notes have no summary section. The release page is on GitHub. */
+/* UpdateChecking.swift About tab: shown in the update summary box when the release notes have no summary section. The release page is on GitHub. */
 "이번 버전의 요약은 릴리스 페이지에서 확인할 수 있습니다." = "可在發佈頁面查看此版本的摘要。";
-/* UpdateChecking.swift:109 About tab: update status when checking for a new version failed. */
+/* UpdateChecking.swift About tab: update status when checking for a new version failed. */
 "업데이트를 확인하지 못했습니다. 잠시 후 다시 시도해주세요." = "無法檢查更新項目。請稍後再試。";
 
-/* UpdateInstaller.swift:30 About tab: update status when the release has no matching download file. The release page is on GitHub. */
+/* UpdateInstaller.swift About tab: update status when the release has no matching download file. The release page is on GitHub. */
 "업데이트 파일을 찾지 못했습니다. 릴리스 페이지를 확인해주세요." = "找不到更新檔案。請查看發佈頁面。";
-/* UpdateInstaller.swift:59 Update error: the new app did not report that it started in time, so the update was cancelled. */
+/* UpdateInstaller.swift Update error: the new app did not report that it started in time, so the update was cancelled. */
 "새 앱이 준비되지 않아 업데이트를 취소했습니다." = "新版App未能準備就緒，已取消更新。";
-/* UpdateInstaller.swift:69 Update error: the new app could not be stopped while undoing the update. Asks the user to quit gksdud and try again. */
+/* UpdateInstaller.swift Update error: the new app could not be stopped while undoing the update. Asks the user to quit gksdud and try again. */
 "새 앱을 종료하지 못했습니다. gksdud를 종료한 뒤 다시 시도해주세요." = "無法結束新版App。請結束gksdud後再試一次。";
-/* UpdateInstaller.swift:85 Update error in the About tab or the update helper's alert: an app's code signature could not be verified, and the installed app stays as it is. */
+/* UpdateInstaller.swift Update error in the About tab or the update helper's alert: an app's code signature could not be verified, and the installed app stays as it is. */
 "앱의 서명을 검증하지 못했습니다. 기존 앱은 그대로 유지됩니다." = "無法驗證App的簽名。已安裝的App不會變更。";
-/* UpdateInstaller.swift:95 About tab: update status in a development build signed ad hoc, which cannot update itself. Asks the user to install an official release. */
+/* UpdateInstaller.swift About tab: update status in a development build signed ad hoc, which cannot update itself. Asks the user to install an official release. */
 "개발용 ad-hoc 빌드는 자동 업데이트를 지원하지 않습니다. 정식 배포본을 설치해주세요." = "開發用的ad-hoc版本不支援自動更新。請安裝正式發佈的版本。";
-/* UpdateInstaller.swift:99 Update error in the About tab or the update helper's alert: the installed app's signing information could not be read. */
+/* UpdateInstaller.swift Update error in the About tab or the update helper's alert: the installed app's signing information could not be read. */
 "현재 앱의 서명 정보를 읽지 못했습니다." = "無法讀取目前App的簽名資訊。";
-/* UpdateInstaller.swift:106 Update error in the About tab or the update helper's alert: the downloaded update is signed differently from the installed app, which stays as it is. */
+/* UpdateInstaller.swift Update error in the About tab or the update helper's alert: the downloaded update is signed differently from the installed app, which stays as it is. */
 "현재 앱과 업데이트의 서명이 다릅니다. 기존 앱은 그대로 유지됩니다." = "目前App與更新項目的簽名不同。已安裝的App不會變更。";
-/* UpdateInstaller.swift:113 Update error in the About tab or the update helper's alert: the downloaded app has the wrong bundle identifier or version. */
+/* UpdateInstaller.swift Update error in the About tab or the update helper's alert: the downloaded app has the wrong bundle identifier or version. */
 "업데이트의 앱 이름 또는 버전이 올바르지 않습니다." = "更新項目的App名稱或版本不正確。";
-/* UpdateInstaller.swift:124 About tab: update status when the release's checksum file has no valid entry for the download. */
+/* UpdateInstaller.swift About tab: update status when the release's checksum file has no valid entry for the download. */
 "업데이트 체크섬 정보가 올바르지 않습니다." = "更新項目的核對碼資訊不正確。";
-/* UpdateInstaller.swift:131 About tab: update status when the downloaded file does not match its published checksum. */
+/* UpdateInstaller.swift About tab: update status when the downloaded file does not match its published checksum. */
 "다운로드한 파일의 체크섬이 일치하지 않습니다. 다시 시도해주세요." = "下載檔案的核對碼不符。請再試一次。";
-/* UpdateInstaller.swift:139 About tab: update status when the downloaded archive holds paths outside gksdud.app. */
+/* UpdateInstaller.swift About tab: update status when the downloaded archive holds paths outside gksdud.app. */
 "업데이트 압축 파일의 경로가 올바르지 않습니다." = "更新封存檔中的路徑不正確。";
-/* UpdateInstaller.swift:144 About tab: update status when the downloaded archive holds links, which gksdud does not accept. */
+/* UpdateInstaller.swift About tab: update status when the downloaded archive holds links, which gksdud does not accept. */
 "지원하지 않는 링크가 압축 파일에 포함되어 있습니다." = "封存檔中包含不支援的連結。";
-/* UpdateInstaller.swift:149 About tab: update status when the downloaded archive would unpack beyond the size limit. */
+/* UpdateInstaller.swift About tab: update status when the downloaded archive would unpack beyond the size limit. */
 "업데이트 압축 파일이 너무 큽니다." = "更新封存檔太大。";
-/* UpdateInstaller.swift:153 About tab: update status when the downloaded archive has no content. */
+/* UpdateInstaller.swift About tab: update status when the downloaded archive has no content. */
 "업데이트 압축 파일이 비어 있습니다." = "更新封存檔是空的。";
-/* UpdateInstaller.swift:161 About tab: update status when a system tool that lists or unpacks the downloaded archive failed. */
+/* UpdateInstaller.swift About tab: update status when a system tool that lists or unpacks the downloaded archive failed. */
 "업데이트 파일을 준비하지 못했습니다." = "無法準備更新檔案。";
-/* UpdateInstaller.swift:177, UpdateInstaller.swift:220 Update error in the About tab or the update helper's alert: gksdud cannot write to the folder it is installed in. Use Apple's name for the Applications folder. */
+/* UpdateInstaller.swift, UpdateInstaller.swift Update error in the About tab or the update helper's alert: gksdud cannot write to the folder it is installed in. Use Apple's name for the Applications folder. */
 "앱 설치 폴더에 쓰기 권한이 없습니다. 쓰기 가능한 응용 프로그램 폴더에서 다시 시도해주세요." = "你沒有權限寫入App所在的檔案夾。請在可寫入的「應用程式」檔案夾中再試一次。";
-/* UpdateInstaller.swift:188 Update helper alert: undoing the update stopped because the new app could not be quit. %@ is the path where the old app is kept. */
+/* UpdateInstaller.swift Update helper alert: undoing the update stopped because the new app could not be quit. %@ is the path where the old app is kept. */
 "새 앱을 종료하지 못해 복원을 중단했습니다. 기존 앱은 %@에 보관되어 있습니다." = "無法結束新版App，已停止回復。原本的App保留在%@。";
-/* UpdateInstaller.swift:196 Update helper alert: putting the old app back did not finish. %@ is the path where the old app is kept. */
+/* UpdateInstaller.swift Update helper alert: putting the old app back did not finish. %@ is the path where the old app is kept. */
 "자동 복원이 완료되지 않았습니다. 기존 앱은 %@에 보관되어 있습니다." = "自動回復未完成。原本的App保留在%@。";
-/* UpdateInstaller.swift:198 Update helper alert: the update did not finish, so gksdud put the old app back. */
+/* UpdateInstaller.swift Update helper alert: the update did not finish, so gksdud put the old app back. */
 "업데이트를 완료하지 못해 기존 앱으로 복원했습니다." = "無法完成更新，已回復為原本的App。";
-/* UpdateInstaller.swift:224 About tab: update status while the update downloads. */
+/* UpdateInstaller.swift About tab: update status while the update downloads. */
 "업데이트 다운로드 중…" = "正在下載更新項目⋯";
-/* UpdateInstaller.swift:238 About tab: update status while gksdud checks the downloaded app's checksum and signature. */
+/* UpdateInstaller.swift About tab: update status while gksdud checks the downloaded app's checksum and signature. */
 "다운로드한 앱을 검증하는 중…" = "正在驗證下載的App⋯";
-/* UpdateInstaller.swift:250 About tab: update status while gksdud installs the update and restarts. */
+/* UpdateInstaller.swift About tab: update status while gksdud installs the update and restarts. */
 "업데이트를 설치하고 다시 시작하는 중…" = "正在安裝更新項目並重新啟動⋯";
-/* UpdateInstaller.swift:266 About tab: update status when downloading a release file failed or returned an unexpected response. */
+/* UpdateInstaller.swift About tab: update status when downloading a release file failed or returned an unexpected response. */
 "업데이트 다운로드에 실패했습니다." = "無法下載更新項目。";
-/* UpdateInstaller.swift:270 About tab: update status when gksdud could not start its update helper process. */
+/* UpdateInstaller.swift About tab: update status when gksdud could not start its update helper process. */
 "업데이트 도우미를 실행하지 못했습니다." = "無法啟動更新輔助程式。";
-/* UpdateInstaller.swift:277 Update helper error: the helper was started with invalid arguments. */
+/* UpdateInstaller.swift Update helper error: the helper was started with invalid arguments. */
 "잘못된 업데이트 요청입니다." = "更新要求無效。";
-/* UpdateInstaller.swift:285 Update helper error: the paths it was given are not the expected download and app paths. */
+/* UpdateInstaller.swift Update helper error: the paths it was given are not the expected download and app paths. */
 "잘못된 업데이트 경로입니다." = "更新路徑無效。";
-/* UpdateInstaller.swift:291 Update helper alert: gksdud did not quit within a minute, so the update was cancelled. */
+/* UpdateInstaller.swift Update helper alert: gksdud did not quit within a minute, so the update was cancelled. */
 "앱이 종료되지 않아 업데이트를 취소했습니다." = "App未結束，已取消更新。";
-/* UpdateInstaller.swift:301 Update helper alert: title of the alert that reports a failed update. */
+/* UpdateInstaller.swift Update helper alert: title of the alert that reports a failed update. */
 "gksdud 업데이트" = "gksdud更新";
 
-/* main.swift:21 General tab, switch key picker: the right Command key. */
+/* main.swift General tab, switch key picker: the right Command key. */
 "우측 Command ⌘" = "右側Command鍵 ⌘";
-/* main.swift:21 General tab, switch key picker: the right Option key. */
+/* main.swift General tab, switch key picker: the right Option key. */
 "우측 Option ⌥" = "右側Option鍵 ⌥";
-/* main.swift:22 General tab, switch key picker: the Caps Lock key. */
+/* main.swift General tab, switch key picker: the Caps Lock key. */
 "Caps Lock ⇪" = "大寫鎖定 ⇪";
-/* main.swift:22 General tab, switch key picker: the right Control key. */
+/* main.swift General tab, switch key picker: the right Control key. */
 "우측 Control ⌃" = "右側Control鍵 ⌃";
-/* main.swift:64 Error alert: saving the system's "Select the previous input source" shortcut failed. */
+/* main.swift Error alert: saving the system's "Select the previous input source" shortcut failed. */
 "입력 소스 단축키를 저장하지 못했습니다." = "無法儲存輸入方式快速鍵。";
-/* main.swift:75 Error alert: macOS did not apply the changed "Select the previous input source" shortcut. */
+/* main.swift Error alert: macOS did not apply the changed "Select the previous input source" shortcut. */
 "단축키 활성화에 실패했습니다. 다시 시도해주세요." = "無法套用快速鍵的變更。請再試一次。";
-/* main.swift:98 Settings window, at the top on every tab: default text of the switch test field, kept until the user edits it. It alternates a character typed in Korean with dud, a syllable typed in English mode, as the name gksdud is. Replace the Korean character with one of the UI language's own input, such as あ or 中, and keep dud. */
+/* main.swift Settings window, at the top on every tab: default text of the switch test field, kept until the user edits it. It alternates a character typed in Korean with dud, a syllable typed in English mode, as the name gksdud is. Replace the Korean character with one of the UI language's own input, such as あ or 中, and keep dud. */
 "한dud한dud한dud한dud" = "中dud中dud中dud中dud";
-/* main.swift:147 Error alert: the chosen internal switch key already triggers another system shortcut. %@ is a function key name such as F19. */
+/* main.swift Error alert: the chosen internal switch key already triggers another system shortcut. %@ is a function key name such as F19. */
 "%@ 키는 다른 시스템 단축키에서 사용 중입니다. 다른 대상 키를 선택하세요." = "%@鍵已用於其他系統快速鍵。請選擇其他內部切換鍵。";
-/* main.swift:180 Error alert: saving whether the system's input menu shows in the menu bar failed. gksdud hides that menu while its own icon is shown. */
+/* main.swift Error alert: saving whether the system's input menu shows in the menu bar failed. gksdud hides that menu while its own icon is shown. */
 "기본 입력기 메뉴 표시 설정을 저장하지 못했습니다." = "無法儲存輸入法選單的顯示設定。";
-/* main.swift:189 Error alert: restarting the system process that draws the input menu failed, so showing or hiding that menu did not take effect. */
+/* main.swift Error alert: restarting the system process that draws the input menu failed, so showing or hiding that menu did not take effect. */
 "기본 입력기 메뉴를 새로 고치지 못했습니다." = "無法重新整理輸入法選單。";
-/* main.swift:328 Case tab: checkbox tooltip after gksdud could not change Caps Lock because the system service that controls it was not found. */
+/* main.swift Case tab: checkbox tooltip after gksdud could not change Caps Lock because the system service that controls it was not found. */
 "Caps Lock 제어 장치를 찾지 못했습니다." = "找不到控制大寫鎖定的系統服務。";
-/* main.swift:334 Case tab: checkbox tooltip after gksdud could not connect to the system service that controls Caps Lock. */
+/* main.swift Case tab: checkbox tooltip after gksdud could not connect to the system service that controls Caps Lock. */
 "Caps Lock 제어 연결에 실패했습니다." = "無法連接控制大寫鎖定的系統服務。";
-/* main.swift:339 Case tab: checkbox tooltip after turning Caps Lock on or off failed. */
+/* main.swift Case tab: checkbox tooltip after turning Caps Lock on or off failed. */
 "Caps Lock 상태를 변경하지 못했습니다." = "無法更改大寫鎖定的狀態。";
-/* main.swift:343 Case tab: checkbox tooltip when Caps Lock, read back after gksdud turned it on or off, did not show the change. */
+/* main.swift Case tab: checkbox tooltip when Caps Lock, read back after gksdud turned it on or off, did not show the change. */
 "Caps Lock 상태 변경을 확인하지 못했습니다." = "無法確認大寫鎖定的狀態已更改。";
-/* main.swift:395 About tab: button that downloads and installs the available update, then restarts gksdud. */
+/* main.swift About tab: button that downloads and installs the available update, then restarts gksdud. */
 "업데이트 설치" = "安裝更新項目";
-/* main.swift:396 About tab: button that checks for a new version now. */
+/* main.swift About tab: button that checks for a new version now. */
 "업데이트 확인" = "檢查更新項目";
-/* main.swift:440, main.swift:577 General tab: button that asks macOS for Accessibility access, which switching on key down needs. */
+/* main.swift, main.swift General tab: button that asks macOS for Accessibility access, which switching on key down needs. */
 "접근성 권한 허용" = "允許「輔助使用」取用";
-/* main.swift:442 Case tab: checkbox. Holding the switch key switches to English and toggles Caps Lock. */
+/* main.swift Case tab: checkbox. Holding the switch key switches to English and toggles Caps Lock. */
 "길게 눌러 대소문자 전환" = "按住來切換大小寫";
-/* main.swift:443 Case tab: checkbox that keeps English uppercase or lowercase across input source switches. The Korean says switching between Korean and English; translate it as switching between the user's two input sources. */
+/* main.swift Case tab: checkbox that keeps English uppercase or lowercase across input source switches. The Korean says switching between Korean and English; translate it as switching between the user's two input sources. */
 "한영 전환시 대소문자 보존" = "切換輸入方式時保留大小寫";
-/* main.swift:576 General tab: title of the Accessibility access button, disabled, once access is granted. */
+/* main.swift General tab: title of the Accessibility access button, disabled, once access is granted. */
 "권한 허용 완료" = "已允許取用";
-/* main.swift:585 Case tab: tooltip of the case preservation checkbox. Korean input stands for the non-English input source; name the user's own input instead. Long press is the checkbox above. */
+/* main.swift Case tab: tooltip of the case preservation checkbox. Korean input stands for the non-English input source; name the user's own input instead. Long press is the checkbox above. */
 "영어의 대소문자 상태를 기억해 한글에서 영어로 돌아올 때 복원합니다. 길게 누르기와 별도로 설정할 수 있습니다." = "記住英文的大小寫狀態，從其他輸入方式切換回英文時回復。可與「按住來切換大小寫」分開設定。";
-/* main.swift:586 Case tab: tooltip of the long-press checkbox. The key is the switch key chosen in the General tab. */
+/* main.swift Case tab: tooltip of the long-press checkbox. The key is the switch key chosen in the General tab. */
 "선택한 한영 키를 0.5초 누르면 영어로 전환하고 Caps Lock을 켜거나 끕니다." = "按住所選的切換鍵0.5秒，即可切換至英文並開啟或關閉大寫鎖定。";
-/* main.swift:587 Case tab: tooltip of the long-press checkbox without Accessibility access. Use the same words as the General tab and its Accessibility access button. */
+/* main.swift Case tab: tooltip of the long-press checkbox without Accessibility access. Use the same words as the General tab and its Accessibility access button. */
 "일반 탭의 접근성 권한 허용 버튼으로 권한을 허용해주세요." = "請使用「一般」標籤頁中的按鈕允許「輔助使用」取用。";
-/* main.swift:588 General tab: tooltip of the Accessibility access button. */
+/* main.swift General tab: tooltip of the Accessibility access button. */
 "키를 누르는 순간 전환하려면 접근성 권한이 필요합니다." = "若要在按下按鍵的瞬間切換，必須允許「輔助使用」取用。";
-/* main.swift:589 General tab: tooltip of the switch-on-key-down checkbox without Accessibility access. The access button is to its right; until access is granted, switching works as before, on key release through the macOS shortcut. */
+/* main.swift General tab: tooltip of the switch-on-key-down checkbox without Accessibility access. The access button is to its right; until access is granted, switching works as before, on key release through the macOS shortcut. */
 "오른쪽 버튼으로 접근성 권한을 허용해주세요. 허용 전에는 기존 방식으로 동작합니다." = "請使用右側的按鈕允許「輔助使用」取用。在允許之前，會以原本的方式切換。";
-/* main.swift:590 General tab: tooltip of the switch-on-key-down checkbox while it is off. Switching goes through the macOS shortcut, on key release. */
+/* main.swift General tab: tooltip of the switch-on-key-down checkbox while it is off. Switching goes through the macOS shortcut, on key release. */
 "기존 macOS 단축키 방식으로 전환합니다." = "使用原本的macOS快速鍵方式切換。";
-/* main.swift:591 General tab: tooltip of the switch-on-key-down checkbox while gksdud is off. It names the enable checkbox; use that checkbox's translation. */
+/* main.swift General tab: tooltip of the switch-on-key-down checkbox while gksdud is off. It names the enable checkbox; use that checkbox's translation. */
 "활성화를 켜면 키를 누를 때 전환합니다." = "開啟「啟用」後，會在按下按鍵時切換。";
-/* main.swift:592 General tab: tooltip of the switch-on-key-down checkbox while it works. The input source switches the moment the key goes down, and only once while the key is held. */
+/* main.swift General tab: tooltip of the switch-on-key-down checkbox while it works. The input source switches the moment the key goes down, and only once while the key is held. */
 "키를 누르는 순간 전환 · 길게 눌러도 한 번만 전환" = "按下按鍵的瞬間切換 · 按住也只切換一次";
-/* main.swift:593 General tab: tooltip of the switch-on-key-down checkbox while macOS has not yet applied the Accessibility access. */
+/* main.swift General tab: tooltip of the switch-on-key-down checkbox while macOS has not yet applied the Accessibility access. */
 "권한 반영을 기다리는 중입니다. 계속 전환되지 않으면 앱을 다시 실행하세요." = "正在等待權限生效。如果仍無法切換，請重新啟動App。";
-/* main.swift:619 Case tab: tooltip of the long-press checkbox after a hold could not confirm the switch to English. %@ is the name of the input language the hold started from, such as Japanese. */
+/* main.swift Case tab: tooltip of the long-press checkbox after a hold could not confirm the switch to English. %@ is the name of the input language the hold started from, such as Japanese. */
 "영어 전환을 확인하지 못해 대문자 전환을 취소했습니다. 영어와 %@ 입력 소스를 최근 입력 소스로 선택해주세요." = "無法確認已切換至英文，已取消切換大寫。請分別選擇一次英文和%@輸入方式，讓兩者成為最近使用的兩個輸入方式。";
-/* main.swift:746 App menu: item that quits gksdud (⌘Q). */
+/* main.swift App menu: item that quits gksdud (⌘Q). */
 "gksdud 종료" = "結束gksdud";
-/* main.swift:748 Main menu: title of the Edit menu, which the settings window's text field uses. */
+/* main.swift Main menu: title of the Edit menu, which the settings window's text field uses. */
 "편집" = "編輯";
-/* main.swift:749 Edit menu: Cut (⌘X). */
+/* main.swift Edit menu: Cut (⌘X). */
 "잘라내기" = "剪下";
-/* main.swift:749 Edit menu: Copy (⌘C). */
+/* main.swift Edit menu: Copy (⌘C). */
 "복사" = "拷貝";
-/* main.swift:750 Edit menu: Paste (⌘V). */
+/* main.swift Edit menu: Paste (⌘V). */
 "붙여넣기" = "貼上";
-/* main.swift:750 Edit menu: Select All (⌘A). */
+/* main.swift Edit menu: Select All (⌘A). */
 "모두 선택" = "全選";
-/* main.swift:861 Alert title: another key mapping already produces the chosen internal switch key. %@ is a function key name such as F19. */
+/* main.swift Alert title: another key mapping already produces the chosen internal switch key. %@ is a function key name such as F19. */
 "%@ 키는 다른 키 매핑에서 사용 중입니다." = "%@鍵已用於其他按鍵對應。";
-/* main.swift:862 Alert text under the title about the internal switch key being in use: it may conflict with another app, so choose another internal switch key. */
+/* main.swift Alert text under the title about the internal switch key being in use: it may conflict with another app, so choose another internal switch key. */
 "다른 앱과 충돌할 수 있습니다. 대상 키를 바꿔주세요." = "可能會與其他App衝突。請更改內部切換鍵。";
-/* main.swift:866 Alert title: the chosen switch key is already remapped, for example by another app. */
+/* main.swift Alert title: the chosen switch key is already remapped, for example by another app. */
 "이 키에 다른 매핑이 있습니다." = "此按鍵已被重新對應。";
-/* main.swift:867 Alert text: gksdud will use the key only for switching input sources, the other app should stop remapping it, and turning gksdud off restores the earlier mapping. */
+/* main.swift Alert text: gksdud will use the key only for switching input sources, the other app should stop remapping it, and turning gksdud off restores the earlier mapping. */
 "선택한 키를 한영 전환 전용으로 바꿉니다. 다른 앱에서도 이 키의 재매핑을 꺼주세요. 기존 매핑은 해제 시 복원됩니다." = "所選按鍵將專門用來切換輸入方式。請在其他App中也關閉此按鍵的重新對應。停用gksdud後會回復原本的對應。";
-/* main.swift:868 Alert button: go ahead and use the key for switching. */
+/* main.swift Alert button: go ahead and use the key for switching. */
 "변경" = "更改";
-/* main.swift:868 Alert button: keep the current switch key. */
+/* main.swift Alert button: keep the current switch key. */
 "취소" = "取消";
-/* main.swift:891 Settings window: status line at the bottom, above the tab buttons, while gksdud applies the key mapping to the keyboards again. */
+/* main.swift Settings window: status line at the bottom, above the tab buttons, while gksdud applies the key mapping to the keyboards again. */
 "키보드 설정을 다시 적용하고 있습니다." = "正在將設定重新套用到鍵盤。";
-/* main.swift:893 Settings window: status line at the bottom, above the tab buttons, while gksdud is on but none of the keyboards it remaps is connected. */
+/* main.swift Settings window: status line at the bottom, above the tab buttons, while gksdud is on but none of the keyboards it remaps is connected. */
 "적용할 키보드 연결 대기 중" = "正在等待目標鍵盤連接";
-/* main.swift:894 Settings window: status line at the bottom, above the tab buttons, when macOS waits for the user to allow the login item. Use Apple's names for System Settings and Login Items. */
+/* main.swift Settings window: status line at the bottom, above the tab buttons, when macOS waits for the user to allow the login item. Use Apple's names for System Settings and Login Items. */
 "시스템 설정 → 로그인 항목에서 gksdud를 허용하세요." = "請在「系統設定」>「登入項目與延伸功能」中允許gksdud。";
