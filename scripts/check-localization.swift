@@ -9,8 +9,10 @@ struct Diagnostic: Equatable {
     var text: String { "\(file):\(line):\(column): \(isError ? "error" : "warning"): \(message)" }
 }
 struct Position: Hashable { let line: Int, column: Int }
-// A literal's own text, without its interpolations. Raw strings record both the # column and the quote column.
-struct Literal: Equatable { let line: Int, columns: [Int], endLine: Int, text: String, defaultValue: Bool }
+// A literal's own text, without its interpolations. Raw strings record both the # column and the quote column. The label is
+// the argument label before the literal, and parenthesis the offset of its innermost open parenthesis, which the literal
+// shares with the other arguments of its call.
+struct Literal: Equatable { let line: Int, columns: [Int], endLine: Int, text: String, label: String?, parenthesis: Int? }
 struct Lexed { var literals: [Literal] = [], markers: [Position] = [], nsLocalizedString: [Position] = [] }
 enum Byte {
     static let newline = UInt8(ascii: "\n"), space = UInt8(ascii: " "), tab = UInt8(ascii: "\t"), carriageReturn = UInt8(ascii: "\r"), quote = UInt8(ascii: "\""), hash = UInt8(ascii: "#")
@@ -21,6 +23,8 @@ enum Byte {
 struct Lexer {
     let bytes: [UInt8]
     var i = 0, line = 1, lineStart = 0, lexed = Lexed()
+    // The open parentheses around i, an interpolation's \( included, and the start of each comment by the offset just past it.
+    var parentheses: [Int] = [], comments: [Int: Int] = [:]
     init(_ source: String) { bytes = Array(source.utf8) }
     var column: Int { i - lineStart + 1 }
     func at(_ offset: Int) -> UInt8 { i + offset < bytes.count ? bytes[i + offset] : 0 }
@@ -29,7 +33,7 @@ struct Lexer {
     mutating func newline() { i += 1; line += 1; lineStart = i }
 
     mutating func code(interpolation: Bool = false) {
-        var depth = 0
+        let depth = parentheses.count
         while i < bytes.count {
             switch bytes[i] {
             case Byte.newline: newline()
@@ -40,11 +44,11 @@ struct Lexer {
                 var count = 0
                 while at(count) == Byte.hash { count += 1 }
                 if at(count) == Byte.quote { string(hashes: count) } else if at(count) == Byte.slash { regex(hashes: count) } else { i += count }
-            case Byte.open: depth += 1; i += 1
+            case Byte.open: parentheses.append(i); i += 1
             case Byte.close:
                 i += 1
-                if interpolation && depth == 0 { return }
-                depth -= 1
+                if interpolation && parentheses.count == depth { return }
+                _ = parentheses.popLast()
             case let byte where isWord(byte):
                 let start = i, position = Position(line: line, column: column)
                 while i < bytes.count, isWord(bytes[i]) { i += 1 }
@@ -57,16 +61,19 @@ struct Lexer {
     mutating func lineComment() {
         let start = i, position = Position(line: line, column: column)
         while i < bytes.count, bytes[i] != Byte.newline { i += 1 }
+        comments[i] = start
         if String(decoding: bytes[(start + 2)..<i], as: UTF8.self).trimmingCharacters(in: .whitespaces).hasPrefix("l10n-ignore:") { lexed.markers.append(position) }
     }
 
     mutating func blockComment() {
+        let start = i
         var depth = 0
         repeat {
             if at(0) == Byte.slash, at(1) == Byte.star { depth += 1; i += 2 }
             else if at(0) == Byte.star, at(1) == Byte.slash { depth -= 1; i += 2 }
             else if at(0) == Byte.newline { newline() } else { i += 1 }
         } while depth > 0 && i < bytes.count
+        comments[i] = start
     }
 
     // An extended regex literal may hold quotes. As in swiftc, #/…/# ends at the first unescaped / followed by as many # as
@@ -81,7 +88,7 @@ struct Lexer {
     }
 
     mutating func string(hashes count: Int) {
-        let start = i, startLine = line
+        let start = i, startLine = line, parenthesis = parentheses.last
         var columns = [column], text: [UInt8] = []
         i += count
         if count > 0 { columns.append(column) }
@@ -91,7 +98,7 @@ struct Lexer {
             if bytes[i] == Byte.quote, delimiter == 1 || at(1) == Byte.quote && at(2) == Byte.quote, hashes(count, at: delimiter) { i += delimiter + count; break }
             if bytes[i] == Byte.backslash, hashes(count, at: 1) {
                 i += 1 + count
-                if at(0) == Byte.open { i += 1; code(interpolation: true) }
+                if at(0) == Byte.open { parentheses.append(i); i += 1; code(interpolation: true); parentheses.removeLast() }
                 else if at(0) == Byte.newline { newline() }
                 else if at(0) == UInt8(ascii: "u"), at(1) == UInt8(ascii: "{") {
                     let digits = i + 2
@@ -110,19 +117,24 @@ struct Lexer {
             }
             text.append(bytes[i]); i += 1
         }
-        lexed.literals.append(Literal(line: startLine, columns: columns, endLine: line, text: String(decoding: text, as: UTF8.self), defaultValue: labelled("defaultValue", before: start)))
+        lexed.literals.append(Literal(line: startLine, columns: columns, endLine: line, text: String(decoding: text, as: UTF8.self), label: label(before: start), parenthesis: parenthesis))
     }
 
-    // String(localized: "key", defaultValue: "한국어") extracts the default at the key's position, so the default is not unwrapped text.
-    func labelled(_ label: String, before index: Int) -> Bool {
+    // Looks back past whitespace and comments, as in String(localized: "key", defaultValue: /* note */ "한국어").
+    func label(before index: Int) -> String? {
+        func skip(_ j: inout Int) {
+            while j >= 0 {
+                if let start = comments[j + 1] { j = start - 1 } else if [Byte.space, Byte.tab, Byte.carriageReturn, Byte.newline].contains(bytes[j]) { j -= 1 } else { return }
+            }
+        }
         var j = index - 1
-        while j >= 0, [Byte.space, Byte.tab, Byte.newline].contains(bytes[j]) { j -= 1 }
-        guard j >= 0, bytes[j] == Byte.colon else { return false }
+        skip(&j)
+        guard j >= 0, bytes[j] == Byte.colon else { return nil }
         j -= 1
-        while j >= 0, [Byte.space, Byte.tab].contains(bytes[j]) { j -= 1 }
+        skip(&j)
         let end = j + 1
         while j >= 0, isWord(bytes[j]) { j -= 1 }
-        return bytes[(j + 1)..<end].elementsEqual(label.utf8)
+        return j + 1 < end ? String(decoding: bytes[(j + 1)..<end], as: UTF8.self) : nil
     }
 }
 func lex(_ source: String) -> Lexed { var lexer = Lexer(source); lexer.code(); return lexer.lexed }
@@ -306,8 +318,18 @@ func check(_ project: Project) -> Report {
             }
         }
         if !source.isTest {
-            let lexed = lex(source.text), wrapped = Set(extracted.map { Position(line: $0.line, column: $0.column) })
-            let open = lexed.literals.filter { literal in hasHangul(literal.text) && !literal.defaultValue && !literal.columns.contains { wrapped.contains(Position(line: literal.line, column: $0)) } }
+            let lexed = lex(source.text)
+            func positions(_ entries: [Extracted]) -> Set<Position> { Set(entries.map { Position(line: $0.line, column: $0.column) }) }
+            func sits(_ literal: Literal, in places: Set<Position>) -> Bool { literal.columns.contains { places.contains(Position(line: literal.line, column: $0)) } }
+            let wrapped = positions(extracted), valued = positions(extracted.filter { $0.value != nil })
+            // The other arguments of a String(localized:) call share the innermost parenthesis of its extracted key.
+            let callsWithValue = Set(lexed.literals.filter { sits($0, in: valued) }.compactMap(\.parenthesis))
+            var open: [Literal] = []
+            for literal in lexed.literals where hasHangul(literal.text) && !sits(literal, in: wrapped) {
+                // swiftc extracts String(localized: "key", defaultValue: "한국어") at the key, so the default is not unwrapped text.
+                if literal.label == "defaultValue", literal.parenthesis.map(callsWithValue.contains) == true { continue }
+                open.append(literal)
+            }
             let marked = Set(lexed.markers.map(\.line)), openLines = Set(open.flatMap { Array($0.line...$0.endLine) })
             for literal in open where !(literal.line...literal.endLine).contains(where: marked.contains) {
                 unwrapped += 1
@@ -602,6 +624,21 @@ func selfTest() -> Bool {
         let expected = ["W5 Menu.swift:2:41", "W5 Menu.swift:2:49", "W5 Menu.swift:5:9", "W9 Menu.swift:4:11", "W9 Menu.swift:6:66"]
         expect(found(report.diagnostics) == expected.sorted(), "\(found(report.diagnostics))")
         expect(report.summary.contains("; 3 unwrapped;"), report.summary)
+    }
+
+    section("a defaultValue: literal counts as wrapped only in the String(localized:) call that swiftc extracted with its value, also after comments") {
+        // Positions and values as swiftc -emit-localized-strings reported them.
+        let source = #"""
+            let a = label(defaultValue: "한국어")
+            let b = String(localized: "key.b", defaultValue: /* note */ "기본값", comment: "Commented default")
+            let c = String(localized: "key.c", defaultValue: // note
+                "줄 기본값", comment: "Line-commented default")
+            let d = f(String(localized: "key.d", defaultValue: "안쪽 기본값", comment: "Nested call"), defaultValue: "바깥")
+            """#
+        let extracted = [Extracted(key: "key.b", line: 2, column: 27, comment: "Commented default", value: "기본값"),
+            Extracted(key: "key.c", line: 3, column: 27, comment: "Line-commented default", value: "줄 기본값"), Extracted(key: "key.d", line: 5, column: 29, comment: "Nested call", value: "안쪽 기본값")]
+        let report = check(fixture([Source(path: "Defaults.swift", text: source, extracted: extracted)]))
+        expect(found(report.diagnostics) == ["W5 Defaults.swift:1:29", "W5 Defaults.swift:5:111"] && report.summary.contains("; 2 unwrapped;"), "\(found(report.diagnostics)) \(report.summary)")
     }
 
     section("format specifiers: positions, %%, length modifiers, * widths and precisions, Foundation's conversions and counts") {
