@@ -155,6 +155,10 @@ func runInputWiringTests() {
     let katakana = SampleSource.katakana
     featureCheck(fake.inputSources.select(katakana.id) && fake.selected == [katakana.id] && fake.current == katakana, "FakeInputSources.select must record the ID and make its source current")
     featureCheck(!fake.inputSources.select("example.missing") && fake.selected == [katakana.id, "example.missing"] && fake.current == katakana, "an unknown ID must be recorded, fail and keep the current source")
+    // The Korean-only Option round trip must read and select through the injected sources too, not InputSources.system.
+    let option = delegate.makeOptionInput().environment, read = option.current()
+    featureCheck(read == fake.current?.identity && option.select(SampleSource.abc.identity) && fake.selected == [katakana.id, "example.missing", SampleSource.abc.id],
+        "the Option round trip must read and select through the injected input sources; it read \(read?.id ?? "nil") and selected \(fake.selected)")
     // Input method IDs as on this Mac, plus a shorter prefix that must lose to the longest one.
     let methods = [InputSource(id: "com.apple.inputmethod", language: "", name: "Shorter prefix"), InputSource(id: "com.apple.inputmethod.Korean", language: "ko", name: "Korean"),
         InputSource(id: "com.apple.inputmethod.Kotoeri.RomajiTyping", language: "ja", name: "Japanese – Romaji"), InputSource(id: "com.apple.inputmethod.Kotoeri.KanaTyping", language: "ja", name: "Japanese – Kana"),
@@ -172,7 +176,7 @@ func runInputWiringTests() {
             "installed(id:) must read ABC as source(id:) does and find Kotoeri Katakana, got \(String(describing: installed))")
         featureCheck(InputSources.installed(id: "io.gksdud.nonexistent-input-source") == nil, "an unknown ID must not be installed")
     } else { print("SKIP: installed input source lookups (ABC input source is unavailable)") }
-    print("PASS: environment wiring: English detection, long-press failure names, trust and the event tap latch, fake selection, input method names, installed lookups")
+    print("PASS: environment wiring: English detection, long-press failure names, trust and the event tap latch, fake selection, the Option round trip's reads and selections through the fakes, input method names, installed lookups")
     runStatusMenuWiringTests()
 }
 
