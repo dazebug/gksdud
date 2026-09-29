@@ -39,7 +39,7 @@ struct Lexer {
             case Byte.hash:
                 var count = 0
                 while at(count) == Byte.hash { count += 1 }
-                if at(count) == Byte.quote { string(hashes: count) } else { i += count }
+                if at(count) == Byte.quote { string(hashes: count) } else if at(count) == Byte.slash { regex(hashes: count) } else { i += count }
             case Byte.open: depth += 1; i += 1
             case Byte.close:
                 i += 1
@@ -67,6 +67,17 @@ struct Lexer {
             else if at(0) == Byte.star, at(1) == Byte.slash { depth -= 1; i += 2 }
             else if at(0) == Byte.newline { newline() } else { i += 1 }
         } while depth > 0 && i < bytes.count
+    }
+
+    // An extended regex literal may hold quotes. As in swiftc, #/…/# ends at the first unescaped / followed by as many # as
+    // it opened with, also across lines; bare /…/ literals are off in Swift 5 mode.
+    mutating func regex(hashes count: Int) {
+        i += count + 1
+        while i < bytes.count, !(bytes[i] == Byte.slash && hashes(count, at: 1)) {
+            if bytes[i] == Byte.backslash { i += 1 }
+            if at(0) == Byte.newline { newline() } else { i += 1 }
+        }
+        i += count + 1
     }
 
     mutating func string(hashes count: Int) {
@@ -507,7 +518,7 @@ func selfTest() -> Bool {
     // Two spellings of 활성화 that String's == calls equal and the bundle tells apart.
     let nfc = "활성화".precomposedStringWithCanonicalMapping, nfd = nfc.decomposedStringWithCanonicalMapping
 
-    section("lexer skips comments and nested comments, and reads escapes, \"#\", raw, multi-line and URL literals and nested interpolations") {
+    section("lexer skips comments, nested comments and extended regex literals, and reads escapes, \"#\", raw, multi-line and URL literals and nested interpolations") {
         let lexed = lex(##"""
             // 주석 속 "한글"은 무시합니다
             /* 바깥 /* 안쪽 */ "여전히 주석" */
@@ -519,12 +530,21 @@ func selfTest() -> Bool {
                 """
             let url = "https://github.com/codingnoye/gksdud" // 링크
             let e = "상태 \(a ? "한" : "영")"
+            let r = #/"/#; let title = "한국어"
+            let s = ##/"/#"/##; let t = #/\/#"/#; let u = "가"
+            let m = #/
+                "
+                /#
+            let v = "나"
             """##)
         let literals = lexed.literals.sorted { ($0.line, $0.columns[0]) < ($1.line, $1.columns[0]) }
         let shown = literals.map { "\($0.line):\($0.columns.map(String.init).joined(separator: "/")) \($0.text.trimmingCharacters(in: .whitespacesAndNewlines))" }
         expect(shown == ["3:9 따옴표 \"안\" 끝 한", "4:43 #", "5:9/10 로우 \"문자열\"", "5:37/39 이중 \"# 로우", "6:9 여러 줄 \"따옴표\"",
-            "9:11 https://github.com/codingnoye/gksdud", "10:9 상태", "10:23 한", "10:31 영"], "lexed \(shown)")
+            "9:11 https://github.com/codingnoye/gksdud", "10:9 상태", "10:23 한", "10:31 영", "11:28 한국어", "12:47 가", "16:9 나"], "lexed \(shown)")
         expect(literals.first(where: { $0.line == 6 })?.endLine == 8, "a multi-line literal must end on its closing line")
+        let regex = #"let r = #/"/#; let title = "한국어""#
+        let report = check(fixture([Source(path: "Regex.swift", text: regex, extracted: [])]))
+        expect(lex(regex).literals.map(\.text) == ["한국어"] && found(report.diagnostics) == ["W5 Regex.swift:1:28"], "a quote in a regex literal: \(lex(regex).literals.map(\.text)) \(found(report.diagnostics))")
     }
 
     section("literal positions match swiftc extraction: UTF-8 byte columns, raw and multi-line strings, calls nested in interpolations") {
