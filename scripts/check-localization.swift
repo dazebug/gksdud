@@ -323,11 +323,16 @@ func check(_ project: Project) -> Report {
             func sits(_ literal: Literal, in places: Set<Position>) -> Bool { literal.columns.contains { places.contains(Position(line: literal.line, column: $0)) } }
             let wrapped = positions(extracted), valued = positions(extracted.filter { $0.value != nil })
             // The other arguments of a String(localized:) call share the innermost parenthesis of its extracted key.
+            let calls = Set(lexed.literals.filter { sits($0, in: wrapped) }.compactMap(\.parenthesis))
             let callsWithValue = Set(lexed.literals.filter { sits($0, in: valued) }.compactMap(\.parenthesis))
             var open: [Literal] = []
             for literal in lexed.literals where hasHangul(literal.text) && !sits(literal, in: wrapped) {
                 // swiftc extracts String(localized: "key", defaultValue: "한국어") at the key, so the default is not unwrapped text.
                 if literal.label == "defaultValue", literal.parenthesis.map(callsWithValue.contains) == true { continue }
+                // Translators read comment: text next to each entry. It is not unwrapped text, and l10n-ignore, which marks data, does not cover it.
+                if literal.label == "comment", literal.parenthesis.map(calls.contains) == true {
+                    at("W12", literal.line, literal.columns[0], "Korean text in a translator comment. Translators read comments, so write them in English."); continue
+                }
                 open.append(literal)
             }
             let marked = Set(lexed.markers.map(\.line)), openLines = Set(open.flatMap { Array($0.line...$0.endLine) })
@@ -639,6 +644,19 @@ func selfTest() -> Bool {
             Extracted(key: "key.c", line: 3, column: 27, comment: "Line-commented default", value: "줄 기본값"), Extracted(key: "key.d", line: 5, column: 29, comment: "Nested call", value: "안쪽 기본값")]
         let report = check(fixture([Source(path: "Defaults.swift", text: source, extracted: extracted)]))
         expect(found(report.diagnostics) == ["W5 Defaults.swift:1:29", "W5 Defaults.swift:5:111"] && report.summary.contains("; 2 unwrapped;"), "\(found(report.diagnostics)) \(report.summary)")
+    }
+
+    section("Korean in the comment: of an extracted call gets W12, which asks for English, is not unwrapped text and ignores l10n-ignore") {
+        let tab = check(fixture([Source(path: "Tabs.swift", text: #"let a = String(localized: "번역", comment: "탭 이름")"#, extracted: [Extracted(key: "번역", line: 1, column: 27, comment: "탭 이름")])]))
+        expect(found(tab.diagnostics) == ["W12 Tabs.swift:1:46"] && tab.diagnostics.first?.message == "Korean text in a translator comment. Translators read comments, so write them in English."
+            && tab.summary.contains("; 0 unwrapped;") && exitStatus(tab.diagnostics, strict: false) == 0 && exitStatus(tab.diagnostics, strict: true) == 1, "\(tab.diagnostics.map(\.text)) \(tab.summary)")
+        // A marker is for data, which a translator comment is not; comment: of a call that is not extracted is plain text.
+        let source = #"""
+            let b = String(localized: "설정", comment: /* for translators */ "메뉴 항목") // l10n-ignore: not data
+            let c = log(comment: "기록")
+            """#
+        let menu = check(fixture([Source(path: "Menu.swift", text: source, extracted: [Extracted(key: "설정", line: 1, column: 27, comment: "메뉴 항목")])]))
+        expect(found(menu.diagnostics) == ["W12 Menu.swift:1:68", "W5 Menu.swift:2:22", "W9 Menu.swift:1:85"] && menu.summary.contains("; 1 unwrapped;"), "\(found(menu.diagnostics)) \(menu.summary)")
     }
 
     section("format specifiers: positions, %%, length modifiers, * widths and precisions, Foundation's conversions and counts") {
