@@ -80,11 +80,8 @@ extension AppDelegate {
     func refreshIconPreviews() {
         let primary = primaryLanguage(), style = iconStyle
         // In place, because NSPopUpButton drops a duplicate title and would shift the saved index.
-        for (index, title) in IconStyle.allCases.map({ $0.title(primary: primary) }).enumerated() {
-            let text = NSMutableAttributedString(string: title, attributes: [.font: iconPicker.font ?? .systemFont(ofSize: NSFont.systemFontSize)])
-            // Only the glyph before " / " names the input language; the rest is UI text in the UI language's font.
-            text.addAttribute(.coreTextLanguage, value: primary.id, range: NSRange(location: 0, length: min((title as NSString).range(of: " / ").location, text.length)))
-            iconPicker.item(at: index)?.attributedTitle = text
+        for (index, style) in IconStyle.allCases.enumerated() {
+            iconPicker.item(at: index)?.attributedTitle = Self.iconStyleTitle(style, primary: primary, font: iconPicker.font ?? .systemFont(ofSize: NSFont.systemFontSize))
         }
         for (preview, language) in [(languagePreview, primary), (englishPreview, .english)] {
             preview.image = Self.badgeImage(style.badge(for: language))
@@ -96,6 +93,12 @@ extension AppDelegate {
         case let .text(label, filled, language): return badgeImage(label: label, filled: filled, language: language)
         case let .face(face): return DudIcon.badge(korean: face == .hieut)
         }
+    }
+    // Only the glyph before " / " names the input language; the rest is UI text in the UI language's font.
+    static func iconStyleTitle(_ style: IconStyle, primary: InputLanguage, font: NSFont) -> NSAttributedString {
+        let title = style.title(primary: primary), text = NSMutableAttributedString(string: title, attributes: [.font: font])
+        text.addAttribute(.coreTextLanguage, value: primary.id, range: NSRange(location: 0, length: min((title as NSString).range(of: " / ").location, text.length)))
+        return text
     }
     // The badge names its input language, so CoreText takes Han and kana shapes (中 注 あ) from that language, not the UI language.
     static func badgeText(_ label: String, language: String?) -> NSAttributedString {

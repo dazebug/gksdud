@@ -49,6 +49,9 @@ struct PreviewState {
     var keyboardWarning = false   // one keyboard keeps failing and another is disconnected
     var longPressFailure = false  // the long-press checkbox tooltip shows the failure message
     var keyboardDefault = true    // keyboards without their own choice are remapped
+    var longPress = false         // the opt-in long-press checkbox is on
+    // The README screenshots: every other setting keeps its first-launch default, and there is no update or warning.
+    static let capture = PreviewState(longPress: true)
 }
 
 // A read-only look at the two system settings gksdud changes: the Input menu and the "Select the previous input source" shortcut.
@@ -86,6 +89,7 @@ final class PreviewFixture {
         let engine = Engine(defaults: defaults, discover: { devices }, shortcutPreferences: ShortcutPreferences(read: { [:] },
             write: { _ in throw refuse("shortcut write") }, activate: { throw refuse("shortcut activation") }))
         if !state.keyboardDefault { engine.keyboards.defaultEnabled = false }
+        if state.longPress { defaults.set(true, forKey: "longPressCapsLock") }
         engine.keyboards.reconcile(source: engine.source, target: engine.target.usage, active: true)
         if state.keyboardWarning {
             // Three failed writes raise the warning; the wireless keyboard stays known but disconnected.

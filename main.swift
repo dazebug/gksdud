@@ -935,6 +935,12 @@ if CommandLine.arguments.dropFirst().first == "--install-update" {
     // Fail here instead of falling through to a normal, unlocked launch.
     guard CommandLine.arguments.count > index + 1 else { fputs("Usage: gksdud --localization-test <language> [--strict]\n", stderr); exit(1) }
     runLocalizationTest(expected: CommandLine.arguments[index + 1], strict: CommandLine.arguments.contains("--strict"))
+} else if CommandLine.arguments.contains("--capture-screenshots") {
+    SystemAccess.lock()
+    setbuf(stdout, nil)
+    // Bad arguments fail here instead of falling through to a normal, unlocked launch.
+    do { let options = try CaptureOptions(arguments: CommandLine.arguments); try captureScreenshots(to: options.directory, appearance: options.appearance) }
+    catch { fputs("FAIL: screenshots: \(error.localizedDescription)\n", stderr); exit(1) }
 } else if CommandLine.arguments.contains("--self-test") {
     SystemAccess.lock()
     // The self-test expects the Korean source text.

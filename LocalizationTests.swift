@@ -7,6 +7,7 @@ func runLocalizationTests() {
     field.setAccessibilityLabel("한영 전환 테스트 입력창")
     featureCheck(repeatedRole(field) == nil, "the Korean test field label does not name the role \(role), but the walk's check found it")
     print("PASS: the localization walk finds accessibility labels that name their control's role")
+    runScreenshotTests()
     featureCheck(AppLanguage.resolve(localizations: [], preferred: ["en"]) == "ko", "a bundle without localizations, like the bare binary, must resolve to ko")
     featureCheck(AppLanguage.resolve(localizations: ["ko", "ja", "zh-Hant"], preferred: ["ja", "ja"]) == "ja", "the bundle's first preferred localization must win")
     featureCheck(["ko", "en", "ja", "zh-Hant"].map(AppLanguage.name(of:)) == ["한국어", "영어", "일본어", "중국어(번체)"], "language names must be CLDR names in the UI language")
@@ -17,6 +18,85 @@ func runLocalizationTests() {
     featureCheck(["ko", "ja", "zh-Hant"].allSatisfy(bundle.localizations.contains), "bundle localizations \(bundle.localizations) must include ko, ja and zh-Hant")
     featureCheck(Locale.current.language.languageCode?.identifier == "ko", "Locale.current is \(Locale.current.identifier), expected Korean under the ko pin")
     print("PASS: UI language resolution, CLDR names, ko development region, ko/ja/zh-Hant bundle localizations, Korean Locale")
+}
+
+// The parts of --capture-screenshots that need no screen or Screen Recording, so CI runs them: the offscreen badge strip, the arguments,
+// the menu's capture rectangle and overlap check, the backdrop placement, blank-file detection and the capture state.
+func runScreenshotTests() {
+    let scratch = URL(fileURLWithPath: "/private/tmp/gksdud-self-test-\(UUID().uuidString)", isDirectory: true)
+    try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: scratch) }
+    func failure(_ body: () throws -> Any) -> String { do { _ = try body(); return "" } catch { return error.localizedDescription } }
+    // 360 pt at 2x on any display, so the README can show it at half its pixel width.
+    let light = scratch.appendingPathComponent("badges.png"), dark = scratch.appendingPathComponent("badges-dark.png")
+    do {
+        try renderBadgeStrip(primary: .korean, appearance: .aqua, to: light); try renderBadgeStrip(primary: .korean, appearance: .darkAqua, to: dark)
+        let size = try screenshotPixels(light)
+        featureCheck(size.width == 720 && FileManager.default.contents(atPath: light.path) != FileManager.default.contents(atPath: dark.path),
+            "the badge strip is \(size.width) px wide, expected 720 (360 pt at 2x), and must differ in the dark appearance")
+    } catch { featureCheck(false, "the badge strip must render offscreen: \(error.localizedDescription)") }
+    print("PASS: badge strip renders offscreen")
+
+    // Style rows pair the primary badge with the English one. Glyph rows name a source that shows the glyph, or the language when none does.
+    let japanese = badgeStripRows(primary: .japanese, installed: [SampleSource.katakana, SampleSource.kanaHiragana, SampleSource.hiragana, SampleSource.romaji, SampleSource.abc])
+    featureCheck(japanese.map(\.text.string) == IconStyle.allCases.map { $0.title(primary: .japanese) } + ["Hiragana", "Katakana"]
+        && japanese.map(\.badges) == IconStyle.allCases.map { [$0.badge(for: .japanese), $0.badge(for: .english)] } + ["あ", "ア"].map { [.text($0, filled: true, language: "ja")] },
+        "Japanese strip rows are \(japanese.map(\.text.string)) with \(japanese.map(\.badges))")
+    let chinese = badgeStripRows(primary: .traditionalChinese, installed: [SampleSource.zhuyin, SampleSource.cangjie, SampleSource.cantonesePhonetic, SampleSource.abc]).dropFirst(IconStyle.allCases.count)
+    featureCheck(chinese.map(\.text.string) == [AppLanguage.name(of: "zh-Hant"), "Cangjie – Traditional", "Zhuyin – Traditional"] && chinese.map(\.badges) == ["中", "倉", "注"].map { [.text($0, filled: true, language: "zh-Hant")] },
+        "Traditional Chinese glyph rows are \(chinese.map(\.text.string)) with \(chinese.map(\.badges))")
+    let stripFonts = badgeStripFontProblems()
+    featureCheck(stripFonts.isEmpty, stripFonts.joined(separator: "; "))
+    print("PASS: badge strip rows: icon style titles with both badges, one row per glyph named after its source, glyphs in their input language's standard font")
+
+    func options(_ arguments: String) -> String {
+        do { let parsed = try CaptureOptions(arguments: ["gksdud"] + arguments.split(separator: " ").map(String.init)); return "\(parsed.directory.path) \(parsed.appearance == .darkAqua ? "dark" : "light")" }
+        catch { return error.localizedDescription }
+    }
+    featureCheck(options("--capture-screenshots /private/tmp/shots -AppleLanguages (ja)") == "/private/tmp/shots light" && options("--capture-screenshots /private/tmp/shots --appearance dark") == "/private/tmp/shots dark"
+        && options("-AppleLanguages (ja) --capture-screenshots /private/tmp/shots --appearance light") == "/private/tmp/shots light", "capture arguments must give a directory and light unless dark is asked for")
+    featureCheck(options("--capture-screenshots") == CaptureOptions.usage && options("--capture-screenshots --appearance dark") == CaptureOptions.usage
+        && options("--capture-screenshots /private/tmp/shots --appearance sepia").hasPrefix("--appearance takes light or dark, not sepia.")
+        && options("--capture-screenshots /private/tmp/shots --appearance").hasPrefix("--appearance takes light or dark, not nothing."), "capture argument errors must show the usage")
+    print("PASS: --capture-screenshots arguments: directory, light unless dark, usage on a missing directory or appearance")
+
+    let me = getpid(), menuLayer = CGWindowLevelForKey(.popUpMenuWindow)
+    func window(_ owner: String, _ pid: pid_t, layer: CGWindowLevel, _ bounds: CGRect, alpha: Double = 1) -> [String: Any] {
+        [kCGWindowOwnerName as String: owner, kCGWindowOwnerPID as String: pid, kCGWindowLayer as String: layer, kCGWindowBounds as String: bounds.dictionaryRepresentation, kCGWindowAlpha as String: alpha]
+    }
+    let menu = window("gksdud", me, layer: menuLayer, CGRect(x: 100, y: 200, width: 240, height: 300))
+    let apart = window("Clock", me + 1, layer: 1000, CGRect(x: 0, y: 0, width: 80, height: 80)), invisible = window("Overlay", me + 1, layer: 1000, CGRect(x: 0, y: 0, width: 4000, height: 4000), alpha: 0)
+    let rect = try? menuCaptureRect(windowsAbove: [menu, apart, invisible], process: me)
+    featureCheck(rect == CGRect(x: 88, y: 188, width: 264, height: 324), "the menu capture must be the menu window plus 12 pt, ignoring windows beside it and invisible ones; got \(rect.map { "\($0)" } ?? "an error")")
+    let covered = failure { try menuCaptureRect(windowsAbove: [window("Notes", me + 1, layer: 1000, CGRect(x: 330, y: 480, width: 50, height: 50)), menu], process: me) }
+    let missing = failure { try menuCaptureRect(windowsAbove: [window("gksdud", me, layer: 0, CGRect(x: 0, y: 0, width: 384, height: 636))], process: me) }
+    featureCheck(covered.contains("Notes") && covered.contains("move or close it") && missing.contains("status menu is not on screen"), "overlap and missing-menu failures must say what happened: \(covered) / \(missing)")
+    let screen = NSRect(x: 0, y: 25, width: 1440, height: 850)
+    featureCheck(backdropFrame(screen, pointer: NSPoint(x: 1200, y: 400)) == NSRect(x: 0, y: 25, width: 720, height: 850) && backdropFrame(screen, pointer: NSPoint(x: 100, y: 400)) == NSRect(x: 720, y: 25, width: 720, height: 850),
+        "the backdrop must take the half of the screen away from the pointer")
+    print("PASS: menu capture: the menu window plus a 12 pt margin, stopped by another app's window over it, backdrop away from the pointer")
+
+    let blank = scratch.appendingPathComponent("blank.png"), empty = scratch.appendingPathComponent("empty.png"), absent = scratch.appendingPathComponent("absent.png")
+    if let context = CGContext(data: nil, width: 8, height: 8, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
+        context.setFillColor(CGColor(gray: 0.9, alpha: 1)); context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        try? context.makeImage().map { NSBitmapImageRep(cgImage: $0) }?.representation(using: .png, properties: [:])?.write(to: blank)
+    }
+    FileManager.default.createFile(atPath: empty.path, contents: Data())
+    let problems = [blank, empty, absent].map { file in failure { try screenshotPixels(file) } }
+    featureCheck(problems == ["\(blank.path) is a single uniform colour, as a blank capture is", "\(empty.path) is empty", "\(absent.path) is missing"], "blank, empty and missing screenshots must fail by name: \(problems)")
+    // What the README screenshots show: trusted, on, key-down switching, long press and preservation on, login off, menu bar on,
+    // the first icon style and the default test text, with no update or warning.
+    _ = NSApplication.shared
+    NSApp.setActivationPolicy(.prohibited)
+    guard let fixture = try? PreviewFixture(uiLanguage: "ko", state: .capture) else { featureCheck(false, "the capture fixture must build"); return }
+    let delegate = fixture.delegate, boxes = [delegate.enabled, delegate.pressSwitch, delegate.longPressSwitch, delegate.preserveCapsSwitch, delegate.login, delegate.showInMenuBar] + delegate.specialButtons
+    featureCheck(boxes.map { $0.state == .on } == [true, true, true, true, false, true, false, false] && delegate.pressSwitch.isEnabled && delegate.iconPicker.indexOfSelectedItem == 0
+        && fixture.defaults.object(forKey: "testInputText") == nil && delegate.testInput.stringValue == delegate.engine.testInputText && delegate.keyboardWarningRow.isHidden && delegate.statusMenu.items[1].isHidden,
+        "the capture state shows \(boxes.map { "\($0.title): \($0.state == .on)" }), icon style \(delegate.iconPicker.indexOfSelectedItem), test text \(delegate.testInput.stringValue)")
+    let untouched = fixture.verifyUntouched()
+    fixture.close()
+    featureCheck(untouched.isEmpty, "the capture fixture reached the live system: \(untouched)")
+    print("PASS: capture state and checks: long press on over the default settings, no update or warning, untouched; blank, empty and missing files fail by name")
 }
 
 // Translated row labels can be wider than the Korean 95 pt column; the rows must then share the widest label's width.
@@ -63,7 +143,7 @@ func runLocalizationTest(expected: String, strict: Bool) {
         detail += ", \(sample) in \(fonts.joined(separator: " "))"
     }
     // Badges name their input language, so its font must win over the UI language's cascade.
-    errors += badgeFontProblems()
+    errors += badgeFontProblems() + badgeStripFontProblems()
     // Saved keyboard choices are keyed by this hash of the untranslated fallback name.
     if KeyboardIdentity(properties: [:]).key != "4a38e0a533f920f053f8ea29fdf2161cd7e84009e4a223a562b4b5fb1a8ab1ec" { errors.append("KeyboardIdentity(properties: [:]).key changed, which would forget saved keyboard choices") }
     let walk = walkUI(expected)
@@ -225,6 +305,16 @@ func badgeFontProblems() -> [String] {
             let own = (text.attribute(.font, at: 0, effectiveRange: nil) as? NSFont).map { CTFontCopyPostScriptName($0 as CTFont) as String }
             guard let expected = label.unicodeScalars.allSatisfy(\.isASCII) ? own : standardFonts[language.id] else { return "\(language.id) badge \(label) has no standard font to check" }
             return !fonts.isEmpty && fonts.allSatisfy({ $0.contains(expected) }) ? nil : "\(language.id) badge \(label) is drawn in \(fonts), expected \(expected)"
+        }
+    }
+}
+// Like the icon style picker, the screenshots' badge strip draws a title's leading glyph in its input language's standard font.
+func badgeStripFontProblems() -> [String] {
+    InputLanguage.all.filter { !$0.isEnglish }.flatMap { language in
+        badgeStripRows(primary: language, installed: []).prefix(IconStyle.allCases.count).compactMap { row -> String? in
+            guard row.text.string.unicodeScalars.first.map({ !$0.isASCII }) == true else { return nil }
+            let font = glyphRunFonts(row.text).first ?? "no font", standard = standardFonts[language.id] ?? "no standard font"
+            return font.contains(standard) ? nil : "the badge strip title \(row.text.string) draws its \(language.id) glyph in \(font), expected \(standard)"
         }
     }
 }
