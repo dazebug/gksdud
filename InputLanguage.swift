@@ -11,15 +11,17 @@ struct InputLanguage: Hashable {
     var script: String? = nil               // required inferred script; nil accepts any
     let glyph: String                       // glyph styles
     let code: String                        // code style
-    var modeGlyphs: [String: String] = [:]  // kTISPropertyInputModeID -> glyph, as in the system Input menu gksdud hides
+    // kTISPropertyInputModeID -> glyph, as in the system Input menu gksdud hides. Unlike a Dictionary, KeyValuePairs keeps this
+    // order, which the screenshots' badge strip shows.
+    var modeGlyphs: KeyValuePairs<String, String> = [:]
     var face: DudFace? = nil                // hand-drawn DudIcon face for the character style
     // The Option round trip switches sources around every keystroke. Kotoeri and TCIM hold multi-keystroke marked text
     // that a switch commits or discards, and their Option behaviour has never been probed.
     var optionCharactersViaEnglish = false  // only Korean composition survives the Option round trip
     static let korean = InputLanguage(id: "ko", languageCode: "ko", glyph: "한", code: "KO", face: .hieut, optionCharactersViaEnglish: true) // l10n-ignore: badge glyph
     static let japanese = InputLanguage(id: "ja", languageCode: "ja", glyph: "あ", code: "JA", modeGlyphs: [
-        "com.apple.inputmethod.Japanese.Katakana": "ア", "com.apple.inputmethod.Japanese.HalfWidthKana": "ｱ",
-        "com.apple.inputmethod.Japanese.FullWidthRoman": "Ａ"])
+        "com.apple.inputmethod.Japanese.Katakana": "ア", "com.apple.inputmethod.Japanese.FullWidthRoman": "Ａ",
+        "com.apple.inputmethod.Japanese.HalfWidthKana": "ｱ"])
     static let traditionalChinese = InputLanguage(id: "zh-Hant", languageCode: "zh", script: "Hant", glyph: "中", code: "ZH", modeGlyphs: [
         "com.apple.inputmethod.TCIM.Zhuyin": "注", "com.apple.inputmethod.TCIM.ZhuyinEten": "注", "com.apple.inputmethod.TCIM.Cangjie": "倉",
         "com.apple.inputmethod.TCIM.Jianyi": "速", "com.apple.inputmethod.TCIM.Pinyin": "拼", "com.apple.inputmethod.TCIM.Shuangpin": "雙",
@@ -37,7 +39,9 @@ struct InputLanguage: Hashable {
     }
     var isEnglish: Bool { self == .english }
     var displayName: String { AppLanguage.name(of: id) }
-    func glyph(mode: String?) -> String { mode.flatMap { modeGlyphs[$0] } ?? glyph }
+    func glyph(mode: String?) -> String { mode.flatMap { id in modeGlyphs.first { $0.key == id }?.value } ?? glyph }
+    // The badge strip's glyph rows: the language's own glyph, then each mode glyph once, in the order modeGlyphs lists them.
+    var glyphs: [String] { modeGlyphs.reduce(into: [glyph]) { if !$0.contains($1.value) { $0.append($1.value) } } }
     static func == (a: Self, b: Self) -> Bool { a.id == b.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }

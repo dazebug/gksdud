@@ -39,17 +39,18 @@ func runScreenshotTests() {
     } catch { featureCheck(false, "the badge strip must render offscreen: \(error.localizedDescription)") }
     print("PASS: badge strip renders offscreen")
 
-    // Style rows pair the primary badge with the English one. Glyph rows name a source that shows the glyph, or the language when none does.
+    // Style rows pair the primary badge with the English one. Glyph rows follow the language's glyphs and name a source that shows
+    // the glyph, or the language when none does.
     let japanese = badgeStripRows(primary: .japanese, installed: [SampleSource.katakana, SampleSource.kanaHiragana, SampleSource.hiragana, SampleSource.romaji, SampleSource.abc])
     featureCheck(japanese.map(\.text.string) == IconStyle.allCases.map { $0.title(primary: .japanese) } + ["Hiragana", "Katakana"]
         && japanese.map(\.badges) == IconStyle.allCases.map { [$0.badge(for: .japanese), $0.badge(for: .english)] } + ["あ", "ア"].map { [.text($0, filled: true, language: "ja")] },
         "Japanese strip rows are \(japanese.map(\.text.string)) with \(japanese.map(\.badges))")
     let chinese = badgeStripRows(primary: .traditionalChinese, installed: [SampleSource.zhuyin, SampleSource.cangjie, SampleSource.cantonesePhonetic, SampleSource.abc]).dropFirst(IconStyle.allCases.count)
-    featureCheck(chinese.map(\.text.string) == [AppLanguage.name(of: "zh-Hant"), "Cangjie – Traditional", "Zhuyin – Traditional"] && chinese.map(\.badges) == ["中", "倉", "注"].map { [.text($0, filled: true, language: "zh-Hant")] },
+    featureCheck(chinese.map(\.text.string) == [AppLanguage.name(of: "zh-Hant"), "Zhuyin – Traditional", "Cangjie – Traditional"] && chinese.map(\.badges) == ["中", "注", "倉"].map { [.text($0, filled: true, language: "zh-Hant")] },
         "Traditional Chinese glyph rows are \(chinese.map(\.text.string)) with \(chinese.map(\.badges))")
     let stripFonts = badgeStripFontProblems()
     featureCheck(stripFonts.isEmpty, stripFonts.joined(separator: "; "))
-    print("PASS: badge strip rows: icon style titles with both badges, one row per glyph named after its source, glyphs in their input language's standard font")
+    print("PASS: badge strip rows: icon style titles with both badges, one row per glyph in registry order named after its source, glyphs in their input language's standard font")
 
     let me = getpid(), menuLayer = CGWindowLevelForKey(.popUpMenuWindow), backdrop = CGRect(x: 0, y: 0, width: 720, height: 850)
     func window(_ owner: String, _ pid: pid_t, layer: CGWindowLevel, _ bounds: CGRect, alpha: Double = 1) -> [String: Any] {
@@ -357,7 +358,7 @@ let standardFonts = ["ko": "AppleSDGothicNeo", "ja": "HiraKakuInterface", "zh-Ha
 // whatever the UI language. Latin letters stay in the badge's own font.
 func badgeFontProblems() -> [String] {
     InputLanguage.all.flatMap { language -> [String] in
-        let modes = [nil] + language.modeGlyphs.keys.sorted().map { Optional($0) }
+        let modes = [nil] + language.modeGlyphs.map { Optional($0.key) }
         let labels = Set(modes.flatMap { mode in IconStyle.allCases.compactMap { style -> String? in
             if case let .text(label, _, _) = style.badge(for: language, mode: mode) { return label }; return nil } })
         return labels.sorted().compactMap { label in

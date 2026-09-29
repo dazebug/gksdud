@@ -8,7 +8,8 @@ func runInputLanguageTests() {
     for language in all {
         featureCheck(InputLanguage.match(language.id) == language, "match(\"\(language.id)\") must return its own row")
         featureCheck(language.displayName != language.id, "\(language.id) must be a tag with a CLDR name")
-        featureCheck(([language.glyph] + language.modeGlyphs.values).allSatisfy { $0.count == 1 }, "\(language.id) glyphs must be single graphemes")
+        featureCheck(([language.glyph] + language.modeGlyphs.map(\.value)).allSatisfy { $0.count == 1 }, "\(language.id) glyphs must be single graphemes")
+        featureCheck(Set(language.modeGlyphs.map(\.key)).count == language.modeGlyphs.count, "\(language.id) mode IDs must be unique; glyph(mode:) reads only the first")
         featureCheck((2...3).contains(language.code.count) && language.code.allSatisfy { $0.isASCII && $0.isUppercase }, "\(language.id) code \(language.code) must be 2-3 uppercase letters")
         let titles = styles.map { $0.title(primary: language) }
         featureCheck(Set(titles).count == styles.count, "\(language.id) icon style titles \(titles) must be unique; NSPopUpButton drops a duplicate and remaps iconStyle")
@@ -47,6 +48,10 @@ func runInputLanguageTests() {
         }
         featureCheck(IconStyle.glyphDud.badge(for: language) == text(language.glyph, filled: true, language.id), "\(language.id) without a mode must show \(language.glyph)")
     }
+    // The screenshots' badge strip shows each language's glyphs in this order.
+    let ordered = all.map(\.glyphs)
+    featureCheck(ordered == [["한"], ["あ", "ア", "Ａ", "ｱ"], ["中", "注", "倉", "速", "拼", "雙", "畫"], ["粵", "倉", "速", "畫"], ["A"]],
+        "glyphs must be the language's own glyph, then each mode glyph once in registry order, not code point order: \(ordered)")
     let sourceGlyphs = [SampleSource.hiragana, SampleSource.katakana, SampleSource.zhuyin, SampleSource.cangjie, SampleSource.cantonesePhonetic].map { IconStyle.glyphA.badge(for: $0) }
     featureCheck(sourceGlyphs == [text("あ", filled: true, "ja"), text("ア", filled: true, "ja"), text("注", filled: true, "zh-Hant"), text("倉", filled: true, "zh-Hant"), text("粵", filled: true, "yue-Hant")], "sources must show their mode glyphs, got \(sourceGlyphs)")
     let unregistered = [(SampleSource.simplifiedPinyin, "ZH"), (SampleSource.ainu, "AIN"), (SampleSource.konkani, "KOK"),
@@ -59,7 +64,7 @@ func runInputLanguageTests() {
     featureCheck(["fr-CA", "english", "123"].map(InputMenu.fallbackCode) == ["FR", "ENG", "?"], "fallback codes must be at most 3 uppercase letters, or ?")
     // Text badges carry the row id as their CoreText language, so Han and kana take the input language's regional shapes.
     for language in all {
-        let modes: [String?] = [nil] + language.modeGlyphs.keys.map { Optional($0) }
+        let modes: [String?] = [nil] + language.modeGlyphs.map { Optional($0.key) }
         for style in styles {
             for mode in modes {
                 guard case let .text(_, _, tag) = style.badge(for: language, mode: mode) else { continue }
@@ -75,7 +80,7 @@ func runInputLanguageTests() {
     }
     let saved = (-1...5).map(IconStyle.init(saved:))
     featureCheck(saved == [.glyphDud, .glyphDud, .glyphA, .code, .character, .glyphDud, .glyphDud] && IconStyle(saved: 7) == .glyphDud, "saved icon styles 0-3 must keep their order and others must become glyphDud, got \(saved)")
-    print("PASS: badges and icon style titles")
+    print("PASS: badges, each language's glyphs in registry order, and icon style titles")
 
     func menu(_ enabled: [InputSource], current: InputSource?) -> [String] {
         InputMenu.rows(enabled: enabled, current: current).map { $0.checked ? $0.title + " ✓" : $0.title }

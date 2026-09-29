@@ -240,15 +240,13 @@ func backdropFrame(_ screen: NSRect, pointer: NSPoint) -> NSRect {
 
 struct BadgeStripRow { let text: NSAttributedString; let badges: [InputBadge] }
 
-// Each icon style's title with its primary and English badges, then each glyph the primary language shows: its own glyph, then its
-// mode glyphs in code point order (radical and stroke order for Han, gojūon order for kana). A glyph row is named after an installed
-// source that shows the glyph. A mode glyph that no installed source shows is left out, and the language's own glyph then takes
-// the language's name.
+// Each icon style's title with its primary and English badges, then each of the primary language's glyphs: its own glyph, then its
+// mode glyphs in registry order. A glyph row is named after an installed source that shows the glyph. A mode glyph that no installed
+// source shows is left out, and the language's own glyph then takes the language's name.
 func badgeStripRows(primary: InputLanguage, installed: [InputSource]) -> [BadgeStripRow] {
     let font = NSFont.systemFont(ofSize: 13), sources = installed.filter { InputLanguage.match($0.language) == primary }.sorted { $0.id < $1.id }
-    let glyphs = [primary.glyph] + Set(primary.modeGlyphs.values).subtracting([primary.glyph]).sorted()
     return IconStyle.allCases.map { BadgeStripRow(text: AppDelegate.iconStyleTitle($0, primary: primary, font: font), badges: [$0.badge(for: primary), $0.badge(for: .english)]) }
-        + glyphs.compactMap { glyph in
+        + primary.glyphs.compactMap { glyph in
             guard let name = sources.first(where: { primary.glyph(mode: $0.mode) == glyph })?.name ?? (glyph == primary.glyph ? primary.displayName : nil) else { return nil }
             return BadgeStripRow(text: NSAttributedString(string: name, attributes: [.font: font]), badges: [.text(glyph, filled: true, language: primary.id)])
         }
