@@ -16,22 +16,25 @@ let screenshotNames = ["settings-general.png", "settings-caps.png", "settings-sy
 
 func captureScreenshots(to directory: URL, appearance: NSAppearance.Name) throws {
     SystemAccess.lock()
+    // A hung capture or menu must not leave windows on the user's screen, nor a screencapture child to capture it once they are gone.
+    // It is armed before the first call that can block.
+    DispatchQueue.global().asyncAfter(deadline: .now() + 60) { CaptureChild.terminate(); fputs("FAIL: screenshots: still running after 60 s\n", stderr); exit(2) }
+    // finishLaunching can activate this app, so the app to return to is read before it, and every failure after this returns to it.
+    let previous = NSWorkspace.shared.frontmostApplication.flatMap { $0.processIdentifier == getpid() ? nil : $0 }
+    defer { _ = previous?.activate(options: []) }
     NSApplication.shared.setActivationPolicy(.accessory)
     NSApp.finishLaunching()
     NSApp.appearance = NSAppearance(named: appearance)
-    // A hung capture or menu must not leave windows on the user's screen, nor a screencapture child to capture it once they are gone.
-    DispatchQueue.global().asyncAfter(deadline: .now() + 60) { CaptureChild.terminate(); fputs("FAIL: screenshots: still running after 60 s\n", stderr); exit(2) }
     guard CGPreflightScreenCaptureAccess() else { throw CaptureFailure("Grant Screen Recording to the terminal that runs this command (System Settings → Privacy & Security), then run it again.") }
     // The display with the menu bar starts the global coordinates at 0,0, so the menu's rectangle for -R never goes negative there.
     guard let screen = NSScreen.screens.first else { throw CaptureFailure("there is no display to capture") }
-    let previous = NSWorkspace.shared.frontmostApplication
     if screen.backingScaleFactor < 2 { fputs("warning: the display with the menu bar has scale \(screen.backingScaleFactor), so the screenshots are smaller than the README's 2x images\n", stderr) }
     let files = screenshotNames.map { directory.appendingPathComponent($0) }
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     // A file from an earlier run must not pass for this one.
     for file in files where FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
     let fixture = try PreviewFixture(uiLanguage: AppLanguage.current, state: .capture, resolveNames: true)
-    defer { fixture.close(); _ = previous?.activate(options: []) }
+    defer { fixture.close() }
     let delegate = fixture.delegate, window = delegate.window!
     func settle(_ seconds: TimeInterval) { RunLoop.current.run(until: Date(timeIntervalSinceNow: seconds)) }
 
