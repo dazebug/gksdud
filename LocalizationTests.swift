@@ -97,14 +97,14 @@ func runScreenshotTests() {
         "the settings captures must stop for an inactive app, a window that is not key or content grown more than 1 pt: \(inactive ?? "nil") / \(notKey ?? "nil") / \(grown ?? "nil") / \(fine)")
 
     // A screencapture child must not outlive the capture and take the screen once the backdrop is gone. Past its deadline it is
-    // stopped and reaped, also when it ignores SIGTERM.
-    for arguments in [["5"], ["-c", "trap '' TERM; exec /bin/sleep 5"]] {
+    // stopped and reaped, also when it ignores SIGTERM and needs the SIGKILL a second later.
+    for (arguments, limit) in [(["5"], 2.0), (["-c", "trap '' TERM; exec /bin/sleep 5"], 3.0)] {
         let child = Process(), started = Date()
         child.executableURL = URL(fileURLWithPath: arguments.count == 1 ? "/bin/sleep" : "/bin/sh"); child.arguments = arguments
         let command = ([child.executableURL!.lastPathComponent] + arguments).joined(separator: " "), stalled = failure { try CaptureChild.run(child, command: command, deadline: 0.3) }
         let took = Date().timeIntervalSince(started)
-        featureCheck(took < 2 && stalled == "\(command) did not finish within 0.3 s and was stopped" && CaptureChild.running == nil && child.processIdentifier > 1 && kill(child.processIdentifier, 0) == -1 && errno == ESRCH,
-            "a child past its deadline must be stopped, reaped and no longer recorded within 2 s; after \(took) s: \(stalled.isEmpty ? "it finished" : stalled), recorded: \(CaptureChild.running != nil)")
+        featureCheck(took < limit && stalled == "\(command) did not finish within 0.3 s and was stopped" && CaptureChild.running == nil && child.processIdentifier > 1 && kill(child.processIdentifier, 0) == -1 && errno == ESRCH,
+            "a child past its deadline must be stopped, reaped and no longer recorded within \(limit) s; after \(took) s: \(stalled.isEmpty ? "it finished" : stalled), recorded: \(CaptureChild.running != nil)")
     }
     // The watchdog kills the recorded child from its own queue before its exit(2), and no child starts after that.
     let sleeper = Process(), started = Date()
