@@ -3,10 +3,11 @@ import AppKit
 // --capture-screenshots: the README images of the preview fixture. The settings window and the status menu are captured on screen
 // and the badge strip is drawn offscreen. The user's own gksdud runs beside this with the same bundle ID, so the latch is locked,
 // nothing creates a status item or an event tap, the windows ignore the mouse, an inactive or grown settings window and a menu
-// that does not fit on its backdrop, has another app's window over it or the pointer on it stop the capture, and the fixture's
-// tripwires run afterwards. The directory gets the five files only when all of them and the tripwires pass. When macOS refuses to
-// activate this app, the settings window asks for one click on its title bar and takes the mouse only until that click, with a
-// shield over its content that keeps the click off the controls.
+// that does not fit on its backdrop or has another app's window over it stop the capture, a menu that closes early, stays blank
+// or has the pointer on it opens again up to three times, and the fixture's tripwires run afterwards. The directory gets the five
+// files only when all of them and the tripwires pass. When macOS refuses to activate this app, the settings window asks for one
+// click on its title bar and takes the mouse only until that click, with a shield over its content that keeps the click off the
+// controls.
 
 struct CaptureFailure: LocalizedError {
     let errorDescription: String?
@@ -279,7 +280,8 @@ func captureWindowProblem(active: Bool, key: Bool, size: NSSize, built: NSSize) 
 func windowBounds(_ window: [String: Any]) -> CGRect { (window[kCGWindowBounds as String] as? NSDictionary).flatMap { CGRect(dictionaryRepresentation: $0 as CFDictionary) } ?? .null }
 
 // The menu tracks the pointer even though the backdrop and the settings window ignore it, so a hovered row would be captured
-// highlighted; a pointer that has just reached the menu may not have highlighted its row yet. There is no retry.
+// highlighted; a pointer that has just reached the menu may not have highlighted its row yet. The capture opens the menu again, up
+// to three times in all, and fails with this problem only on the last opening.
 func menuHoverProblem(highlighted: String?, pointer: CGPoint?, menu: CGRect) -> String? {
     let again = "keep the pointer off the menu and run the capture again"
     if let highlighted { return "the menu item \"\(highlighted)\" is highlighted; \(again)" }

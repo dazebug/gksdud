@@ -101,7 +101,7 @@ GKSDUD_SIGN_MODE=ad-hoc bash build.sh
 5. 출력된 크기와 사진을 확인하고 `docs/images/<언어>/`를 커밋합니다.
 
 - 실행 중인 gksdud는 그대로 두어도 됩니다. 촬영은 가짜 키보드·입력 소스·단축키 저장소로 만든 미리보기를 찍으며, 실행 중인 gksdud와 시스템 설정을 바꾸지 않습니다.
-- 스크립트는 언어마다 `--localization-test <언어> --strict`를 먼저 통과해야 찍습니다. 촬영이 실패하면 이유를 출력하고 그 언어의 이전 사진을 그대로 둡니다. 메뉴는 포인터 반대쪽 화면 절반을 덮는 배경 위에 열리며, 메뉴 촬영 영역에 다른 앱의 창이 겹치거나 포인터가 메뉴 위에 있으면 실패합니다.
+- 스크립트는 언어마다 `--localization-test <언어> --strict`를 먼저 통과해야 찍습니다. 촬영이 실패하면 이유를 출력하고 그 언어의 이전 사진을 그대로 둡니다. 메뉴는 포인터 반대쪽 화면 절반을 덮는 배경 위에 열리며, 메뉴 촬영 영역에 다른 앱의 창이 겹치면 실패합니다. 메뉴가 일찍 닫히거나 포인터가 메뉴 위에 있으면 메뉴를 다시 열어 세 번까지 찍고, 세 번째에도 그러면 실패합니다.
 - README 사진은 2배율입니다. 메뉴 막대가 있는 화면이 Retina가 아니면 경고하고 작은 사진을 찍습니다.
 - 앱 경로 앞에 `--dark`를 붙이면 검토용 어두운 화면을 `/private/tmp/gksdud-captures/<언어>-dark/`에 찍습니다.
 - 스크립트는 `Info.plist`의 `GKSDUDLaunchModes`가 1인 앱만 실행합니다. `--localization-test`나 `--capture-screenshots`의 인자를 바꾸면 `LaunchMode.contract`, `Info.plist`의 `GKSDUDLaunchModes`, 스크립트가 확인하는 값을 함께 올립니다.
