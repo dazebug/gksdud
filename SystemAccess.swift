@@ -44,7 +44,7 @@ enum LaunchMode: Equatable {
             guard argument.hasPrefix("--") else {
                 guard argument.hasPrefix("-") else { self = .usage(reason: "unexpected argument \(argument)"); return }
                 // macOS's own: NSArgumentDomain pairs such as -AppleLanguages '(ko)', and the lone -psn_0_… of a quarantined app's first
-                // launch. Their value never starts with -, so no mode flag can hide behind them.
+                // launch. An argument that starts with - is never taken as their value, so no mode flag can hide behind them.
                 if let value = rest.first, !value.hasPrefix("-") { rest.removeFirst() }
                 continue
             }

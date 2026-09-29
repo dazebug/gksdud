@@ -27,7 +27,7 @@ func runInputLanguageTests() {
     print("PASS: input language registry and matching")
 
     func text(_ label: String, filled: Bool, _ language: String?) -> InputBadge { .text(label, filled: filled, language: language) }
-    // The Korean and English badges from before the registry, which Korean users keep.
+    // Korean parity: the Korean and English badges Korean users already know must not change.
     let korean = [text("한", filled: true, "ko"), text("한", filled: true, "ko"), text("KO", filled: true, "ko"), .face(.hieut)]
     let english = [text("dud", filled: false, "en"), text("A", filled: false, "en"), text("EN", filled: false, "en"), .face(.d)]
     featureCheck(styles.map { $0.badge(for: .korean) } == korean, "Korean badges are \(styles.map { $0.badge(for: .korean) }), expected 한, 한, KO filled and the ㅎuㅎ face")
@@ -159,7 +159,7 @@ func runInputWiringTests() {
     let option = delegate.makeOptionInput().environment, read = option.current()
     featureCheck(read == fake.current?.identity && option.select(SampleSource.abc.identity) && fake.selected == [katakana.id, "example.missing", SampleSource.abc.id],
         "the Option round trip must read and select through the injected input sources; it read \(read?.id ?? "nil") and selected \(fake.selected)")
-    // Input method IDs as on this Mac, plus a shorter prefix that must lose to the longest one.
+    // Input method IDs as macOS reports them, plus a shorter prefix that must lose to the longest one.
     let methods = [InputSource(id: "com.apple.inputmethod", language: "", name: "Shorter prefix"), InputSource(id: "com.apple.inputmethod.Korean", language: "ko", name: "Korean"),
         InputSource(id: "com.apple.inputmethod.Kotoeri.RomajiTyping", language: "ja", name: "Japanese – Romaji"), InputSource(id: "com.apple.inputmethod.Kotoeri.KanaTyping", language: "ja", name: "Japanese – Kana"),
         InputSource(id: "com.apple.inputmethod.TCIM", language: "zh-Hant", name: "Chinese, Traditional"), InputSource(id: "com.apple.inputmethod.TYIM", language: "yue-Hant", name: "Cantonese, Traditional"),

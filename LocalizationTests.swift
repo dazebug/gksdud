@@ -20,10 +20,7 @@ func runLocalizationTests() {
     print("PASS: UI language resolution, CLDR names, ko development region, ko/ja/zh-Hant bundle localizations, Korean Locale")
 }
 
-// The parts of --capture-screenshots that need no screen or Screen Recording, so CI runs them: the offscreen badge strip, the menu's
-// capture rectangle with its backdrop, overlap and hover checks, the backdrop placement, blank-file detection, the settings window
-// check, the screencapture children's supervision, publishing, the capture state and the click shield. runLaunchModeTests has its
-// arguments.
+// The parts of --capture-screenshots that need no screen or Screen Recording, so CI runs them; runLaunchModeTests covers its arguments.
 func runScreenshotTests() {
     let scratch = URL(fileURLWithPath: "/private/tmp/gksdud-self-test-\(UUID().uuidString)", isDirectory: true)
     try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)

@@ -4,7 +4,7 @@ enum DudFace { case hieut, d
     var eye: String { self == .hieut ? "ㅎ" : "d" } // l10n-ignore: badge glyph
 }
 
-// Input languages gksdud names and badges. Adding one is a row in `all` plus a test row.
+// Input languages gksdud names and badges. Adding one is a row in `all`; CONTRIBUTING.md lists the tests and fonts that go with it.
 struct InputLanguage: Hashable {
     let id: String                          // BCP 47: CLDR name source and CoreText glyph language
     let languageCode: String                // compared with Locale.Language(identifier:).languageCode
@@ -15,9 +15,9 @@ struct InputLanguage: Hashable {
     // order, which the screenshots' badge strip shows.
     var modeGlyphs: KeyValuePairs<String, String> = [:]
     var face: DudFace? = nil                // hand-drawn DudIcon face for the character style
-    // The Option round trip switches sources around every keystroke. Kotoeri and TCIM hold multi-keystroke marked text
-    // that a switch commits or discards, and their Option behaviour has never been probed.
-    var optionCharactersViaEnglish = false  // only Korean composition survives the Option round trip
+    // Leave this false until the Option round trip is probed for the language; only Korean has been. The round trip switches
+    // sources around every keystroke, and Kotoeri and TCIM hold multi-keystroke marked text that a switch commits or discards.
+    var optionCharactersViaEnglish = false
     static let korean = InputLanguage(id: "ko", languageCode: "ko", glyph: "한", code: "KO", face: .hieut, optionCharactersViaEnglish: true) // l10n-ignore: badge glyph
     static let japanese = InputLanguage(id: "ja", languageCode: "ja", glyph: "あ", code: "JA", modeGlyphs: [
         "com.apple.inputmethod.Japanese.Katakana": "ア", "com.apple.inputmethod.Japanese.FullWidthRoman": "Ａ",
