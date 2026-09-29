@@ -161,7 +161,7 @@ func runScreenshotTests() {
 }
 
 // Translated row labels can be wider than the Korean 95 pt column; the rows must then share the widest label's width.
-// The walk's layout check must also see a hint line that wraps.
+// The walk's layout check must also see a hint line that wraps and name the pop-up item that needs the width.
 func runSettingsLayoutTests() {
     _ = NSApplication.shared
     NSApp.setActivationPolicy(.prohibited)
@@ -193,6 +193,13 @@ func runSettingsLayoutTests() {
     featureCheck(first?.contains("line 1 wraps") == true && second?.contains("line 2 wraps") == true,
         "a hint line about 1.5 times the \(hint.bounds.width) pt hint must be reported as wrapping: \(first ?? "nil") / \(second ?? "nil")")
     print("PASS: the Korean hints keep each line on one line, and a hint line that wraps is reported by its number")
+
+    // A pop-up button is as wide as its widest item, so a translator must see that item, not the selected one.
+    let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 40, height: 25), pullsDown: false)
+    popup.addItems(withTitles: ["a", "a much longer title"]); popup.selectItem(at: 0)
+    let narrow = layoutProblem(popup, in: content, built: fixture.settingsSize, scrolled: false)
+    featureCheck(narrow?.hasPrefix("NSPopUpButton \"a much longer title\" needs") == true, "a narrow pop-up button must be named by its widest item: \(narrow ?? "nil")")
+    print("PASS: a pop-up button too narrow for its items is named by its widest item, not the selected one")
 }
 
 // A process resolves one bundle language, so build.sh runs this once per UI language.
@@ -341,7 +348,10 @@ func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(de
 // Text wider or taller than its control, or a control outside the window's built size. Image views scale, so only their position is checked.
 func layoutProblem(_ view: NSView, in content: NSView, built size: NSSize, scrolled: Bool) -> String? {
     let frame = view.alignmentRect(forFrame: view.frame)
-    let text = (view as? NSTextField)?.stringValue ?? (view as? NSButton)?.title ?? view.accessibilityLabel() ?? "", name = "\(type(of: view)) \"\(text)\""
+    // A pop-up button is as wide as its widest item, which need not be the one it shows.
+    let popup = view as? NSPopUpButton, font = popup?.font ?? .systemFont(ofSize: 0)
+    let widest = popup?.itemTitles.max { NSAttributedString(string: $0, attributes: [.font: font]).size().width < NSAttributedString(string: $1, attributes: [.font: font]).size().width }
+    let text = (view as? NSTextField)?.stringValue ?? widest ?? (view as? NSButton)?.title ?? view.accessibilityLabel() ?? "", name = "\(type(of: view)) \"\(text)\""
     // Editable fields scroll and truncating ones end in an ellipsis. A wrapping label must fit its lines at its width.
     if let field = view as? NSTextField, let cell = field.cell, !field.isEditable, !field.stringValue.isEmpty, ![.byTruncatingHead, .byTruncatingMiddle, .byTruncatingTail].contains(field.lineBreakMode) {
         if cell.wraps {
