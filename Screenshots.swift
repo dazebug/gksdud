@@ -2,8 +2,9 @@ import AppKit
 
 // --capture-screenshots: the README images of the preview fixture. The settings window and the status menu are captured on screen
 // and the badge strip is drawn offscreen. The user's own gksdud runs beside this with the same bundle ID, so the latch is locked,
-// nothing creates a status item or an event tap, the windows ignore the mouse, a menu that does not fit on its backdrop, has
-// another app's window over it or the pointer on it stops the capture, and the fixture's tripwires run afterwards.
+// nothing creates a status item or an event tap, the windows ignore the mouse, an inactive or grown settings window and a menu
+// that does not fit on its backdrop, has another app's window over it or the pointer on it stop the capture, and the fixture's
+// tripwires run afterwards.
 
 struct CaptureFailure: LocalizedError {
     let errorDescription: String?
@@ -40,6 +41,7 @@ func captureScreenshots(to directory: URL, appearance: NSAppearance.Name) throws
     settle(0.3)
     for (tab, file) in zip(0..<3, files) {
         delegate.selectTab(tab); window.makeFirstResponder(nil); settle(0.3)
+        if let problem = captureWindowProblem(active: NSApp.isActive, key: window.isKeyWindow, size: window.contentView!.frame.size, built: fixture.settingsSize) { throw CaptureFailure(problem) }
         try screencapture(["-x", "-o", "-l\(window.windowNumber)"], to: file)
     }
     window.orderOut(nil)
@@ -142,6 +144,18 @@ func menuCaptureRect(windowsAbove windows: [[String: Any]], process: pid_t, back
     let covering = windows.filter { number($0, kCGWindowOwnerPID)?.int32Value != process && visible($0) && windowBounds($0).intersects(rect) }
     guard covering.isEmpty else { throw CaptureFailure("\(covering.map(describe).joined(separator: "; ")) is over the menu's capture area \(rect); move or close it and run again") }
     return rect
+}
+
+// Activation can be refused, and an inactive app or a window that is not key draws grey controls. Content that needs more room
+// grows the window past the size it was built with, which the README's 768 px images assume.
+func captureWindowProblem(active: Bool, key: Bool, size: NSSize, built: NSSize) -> String? {
+    var problems: [String] = []
+    if !active { problems.append("the capture is not the active app, so the settings window would show inactive controls; run it again without switching apps") }
+    if !key { problems.append("the settings window is not the key window, so its controls would show inactive; run the capture again without clicking") }
+    if size.width > built.width + 1 || size.height > built.height + 1 {
+        problems.append("the settings window's content grew from its built \(built.width)×\(built.height) pt to \(size.width)×\(size.height) pt, so a label needs more room than the window has")
+    }
+    return problems.isEmpty ? nil : problems.joined(separator: "; ")
 }
 
 func windowBounds(_ window: [String: Any]) -> CGRect { (window[kCGWindowBounds as String] as? NSDictionary).flatMap { CGRect(dictionaryRepresentation: $0 as CFDictionary) } ?? .null }

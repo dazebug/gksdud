@@ -21,8 +21,8 @@ func runLocalizationTests() {
 }
 
 // The parts of --capture-screenshots that need no screen or Screen Recording, so CI runs them: the offscreen badge strip, the menu's
-// capture rectangle with its backdrop, overlap and hover checks, the backdrop placement, blank-file detection and the capture state.
-// runLaunchModeTests has its arguments.
+// capture rectangle with its backdrop, overlap and hover checks, the backdrop placement, blank-file detection, the settings window
+// check and the capture state. runLaunchModeTests has its arguments.
 func runScreenshotTests() {
     let scratch = URL(fileURLWithPath: "/private/tmp/gksdud-self-test-\(UUID().uuidString)", isDirectory: true)
     try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
@@ -88,6 +88,13 @@ func runScreenshotTests() {
     FileManager.default.createFile(atPath: empty.path, contents: Data())
     let problems = [blank, empty, absent].map { file in failure { try screenshotPixels(file) } }
     featureCheck(problems == ["\(blank.path) is a single uniform colour, as a blank capture is", "\(empty.path) is empty", "\(absent.path) is missing"], "blank, empty and missing screenshots must fail by name: \(problems)")
+    // An inactive app or a window that is not key draws its controls grey, and a grown window is not the README's 768 px.
+    let built = NSSize(width: 384, height: 636)
+    let inactive = captureWindowProblem(active: false, key: true, size: built, built: built), notKey = captureWindowProblem(active: true, key: false, size: built, built: built)
+    let grown = captureWindowProblem(active: true, key: true, size: NSSize(width: 384, height: 638), built: built)
+    let fine = [built, NSSize(width: 385, height: 636.5)].map { captureWindowProblem(active: true, key: true, size: $0, built: built) }
+    featureCheck(inactive?.contains("not the active app") == true && notKey?.contains("not the key window") == true && grown?.contains("grew from its built 384.0×636.0 pt to 384.0×638.0 pt") == true && fine == [nil, nil],
+        "the settings captures must stop for an inactive app, a window that is not key or content grown more than 1 pt: \(inactive ?? "nil") / \(notKey ?? "nil") / \(grown ?? "nil") / \(fine)")
     // What the README screenshots show: trusted, on, key-down switching, long press and preservation on, login off, menu bar on,
     // the first icon style and the default test text, with no update or warning.
     _ = NSApplication.shared
@@ -100,7 +107,7 @@ func runScreenshotTests() {
     let untouched = fixture.verifyUntouched()
     fixture.close()
     featureCheck(untouched.isEmpty, "the capture fixture reached the live system: \(untouched)")
-    print("PASS: capture state and checks: long press on over the default settings, no update or warning, untouched; blank, empty and missing files fail by name")
+    print("PASS: capture state and checks: long press on over the default settings, no update or warning, untouched; blank, empty and missing files fail by name; an inactive app, a window that is not key or grew past its built size stops the settings captures")
 }
 
 // Translated row labels can be wider than the Korean 95 pt column; the rows must then share the widest label's width.
